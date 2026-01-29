@@ -6,6 +6,7 @@ import { SignIn, List, NotePencil } from "@phosphor-icons/react";
 
 import { AuthStatus } from "@/store/authStore";
 import { ModelDropdown } from "@/components/dropdowns/ModelDropdown";
+import { ToolsDropdown } from "@/components/dropdowns/ToolsDropdown";
 import { OptionsDropdown } from "@/components/dropdowns/OptionsDropdown";
 import { ChatTitleDropdown } from "@/components/dropdowns/ChatTitleDropdown";
 import { AvatarDropdown } from "@/components/dropdowns/AvatarDropdown";
@@ -110,6 +111,7 @@ export const HomePageHeader: React.FC<HomePageHeaderProps> = ({
             )}
 
           <div className="flex items-center gap-1">
+            <ToolsDropdown />
             <OptionsDropdown />
             <div className="hidden md:block">
               <AvatarDropdown handleLogout={handleLogout} />

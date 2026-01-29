@@ -9,7 +9,6 @@ import {
   PublicNodeInfo,
 } from "../../types";
 import { AllChatActions } from "./index";
-import { availableTools } from "@/constants/constants";
 import { ChatId, JobId, MessageId, NodeId } from "../../types/brands";
 
 export interface ReconciledNode {
@@ -90,7 +89,7 @@ export const initialState: ChatState = {
   compressionLevel: "extreme",
   renderMode: "markdown",
   selectedModel: null,
-  selectedTools: availableTools,
+  selectedTools: [],
   reasoningEffort: "medium",
   isLoading: false,
   webSockets: {},

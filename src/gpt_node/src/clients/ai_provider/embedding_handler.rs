@@ -12,7 +12,7 @@ use async_openai::types::embeddings::CreateEmbeddingRequestArgs;
 use gpt_types::domain::message::TokenUsage;
 use std::sync::atomic::Ordering;
 use tokio::sync::broadcast;
-use tracing::{info, warn};
+use tracing::{info, instrument, warn};
 
 use super::types::AIResponse;
 use super::BROADCAST_CHANNEL_CAPACITY;
@@ -24,6 +24,9 @@ use super::BROADCAST_CHANNEL_CAPACITY;
 /// 2. Calls the embedding API
 /// 3. Broadcasts a single response with the embedding result as JSON
 /// 4. Returns the embedding vector with usage information
+///
+/// Uses skip_all to prevent logging of input text content.
+#[instrument(skip_all, fields(stream_key = %stream_key, provider_model = %state.provider_model))]
 pub async fn process_embedding_request(
     request: OpenAIRequest,
     stream_key: String,

@@ -178,7 +178,7 @@ export const MessageItem: React.FC<MessageItemProps> = memo(
           </div>
         ) : (
           <div className="group flex w-full max-w-208 bg-none flex-col items-start">
-            <div className="max-w-full w-full overflow-x-auto bg-none mx-0.5 leading-7 text-[1rem] font-system text-zinc-200">
+            <div className="max-w-full w-full overflow-x-auto bg-none mx-0.5 leading-6.5 text-[1rem] font-system text-zinc-200">
               <MessageContent
                 message={message}
                 isGenerationFinished={isGenerationFinished}

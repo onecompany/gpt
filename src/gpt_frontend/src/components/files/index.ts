@@ -1,7 +1,6 @@
 export { FilesPageComponent } from "./FilesPageComponent";
 export { FilesPageHeader } from "./FilesPageHeader";
 export { BreadcrumbNav } from "./BreadcrumbNav";
-export { QueueItem } from "./QueueItem";
 export { FileList } from "./FileList";
 export { FileListItem } from "./FileListItem";
 export { FileItemCard } from "./FileItemCard";

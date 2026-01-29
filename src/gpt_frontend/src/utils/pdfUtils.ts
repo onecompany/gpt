@@ -1,4 +1,34 @@
-import { RenderParameters } from "pdfjs-dist/types/src/display/api";
+"use client";
+
+import type { RenderParameters } from "pdfjs-dist/types/src/display/api";
+
+/**
+ * Load pdfjs-dist once and configure its worker in a way that works with:
+ * - Next.js (App Router) client-side usage
+ * - Static export (output: "export")
+ * - No CDN
+ * - No copying worker files into /public
+ *
+ * We let Next/bundler emit the worker as an asset and use the emitted URL.
+ */
+let pdfjsLoadPromise: Promise<typeof import("pdfjs-dist")> | null = null;
+
+async function loadPdfjs() {
+  if (!pdfjsLoadPromise) {
+    pdfjsLoadPromise = import("pdfjs-dist").then((pdfjs) => {
+      // IMPORTANT: Use bundler-emitted asset URL for the worker (no /public copy, no CDN).
+      // This produces a URL like "/_next/static/..." in dev/prod.
+      pdfjs.GlobalWorkerOptions.workerSrc = new URL(
+        "pdfjs-dist/build/pdf.worker.min.mjs",
+        import.meta.url,
+      ).toString();
+
+      return pdfjs;
+    });
+  }
+
+  return pdfjsLoadPromise;
+}
 
 function autocropCanvas(
   sourceCanvas: HTMLCanvasElement,
@@ -147,10 +177,15 @@ export async function* convertPdfToImages(
   file: File,
 ): AsyncGenerator<{ pageFile: File; pageNumber: number; totalPages: number }> {
   const logPrefix = `[PDF-Utils]`;
+
   console.log(logPrefix, `Loading pdf.js library...`);
-  const { getDocument, GlobalWorkerOptions } = await import("pdfjs-dist");
-  GlobalWorkerOptions.workerSrc = `/pdf.worker.min.mjs`;
-  console.log(logPrefix, `pdf.js worker source set.`);
+  const pdfjs = await loadPdfjs();
+  const { getDocument } = pdfjs;
+
+  console.log(
+    logPrefix,
+    `pdf.js worker configured (workerSrc=${pdfjs.GlobalWorkerOptions.workerSrc}).`,
+  );
 
   const arrayBuffer = await file.arrayBuffer();
 
@@ -182,6 +217,7 @@ export async function* convertPdfToImages(
   for (let i = 1; i <= pdf.numPages; i++) {
     console.log(logPrefix, `Processing page ${i} of ${pdf.numPages}...`);
     const page = await pdf.getPage(i);
+
     const MAX_DIMENSION = 1024;
     const viewportDefault = page.getViewport({ scale: 1.0 });
     const scale = Math.min(
@@ -190,6 +226,7 @@ export async function* convertPdfToImages(
       2.0,
     );
     const viewport = page.getViewport({ scale });
+
     console.log(
       logPrefix,
       `Page ${i}: Viewport created with scale ${scale.toFixed(2)} (${viewport.width}x${viewport.height}).`,
@@ -215,6 +252,7 @@ export async function* convertPdfToImages(
       console.log(logPrefix, `Page ${i}: Autocropping canvas...`);
       const croppedCanvas = autocropCanvas(canvas, { padding: 15 });
       const finalCanvas = croppedCanvas || canvas;
+
       console.log(
         logPrefix,
         `Page ${i}: Cropping complete. Final canvas size: ${finalCanvas.width}x${finalCanvas.height}.`,
@@ -223,6 +261,7 @@ export async function* convertPdfToImages(
       const blob = await new Promise<Blob | null>((resolve) =>
         finalCanvas.toBlob(resolve, "image/png", 0.9),
       );
+
       console.log(
         logPrefix,
         `Page ${i}: Converted canvas to PNG blob of size ${(blob?.size ?? 0).toLocaleString()} bytes.`,

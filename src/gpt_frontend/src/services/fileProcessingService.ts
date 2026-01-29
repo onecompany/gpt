@@ -1,9 +1,50 @@
 import type { TextChunk } from "@/types";
 import { isTextMimeType } from "@/utils/fileUtils";
-import { useEmbeddingStore } from "@/store/embeddingStore";
 import { convertPdfToImages } from "@/utils/pdfUtils";
 import { useChatStore } from "@/store/chatStore";
 import { getUniqueFileName } from "@/utils/fileUtils";
+import type { FolderId } from "@/types/brands";
+
+// Default chunk size for text splitting (in characters)
+const CHUNK_SIZE = 1000;
+const CHUNK_OVERLAP = 200;
+
+/**
+ * Creates placeholder chunks from text content.
+ * Chunks have empty embeddings that can be filled in later.
+ */
+function createPlaceholderChunks(
+  text: string,
+): Omit<TextChunk, "text" | "sentences">[] {
+  const chunks: Omit<TextChunk, "text" | "sentences">[] = [];
+  let start = 0;
+  let chunkIndex = 0;
+
+  while (start < text.length) {
+    const end = Math.min(start + CHUNK_SIZE, text.length);
+    chunks.push({
+      chunk_index: chunkIndex,
+      start_char: start,
+      end_char: end,
+      embedding: [], // Placeholder - empty embedding
+    });
+    chunkIndex++;
+    start = end - CHUNK_OVERLAP;
+    if (start >= text.length - CHUNK_OVERLAP) break;
+  }
+
+  // Handle edge case of very short text
+  if (chunks.length === 0 && text.length > 0) {
+    chunks.push({
+      chunk_index: 0,
+      start_char: 0,
+      end_char: text.length,
+      embedding: [],
+    });
+  }
+
+  return chunks;
+}
 
 // Helper to retry async operations (e.g., OCR)
 const retryAsync = async <T>(
@@ -32,7 +73,7 @@ export interface ProcessFileOptions {
   fileName: string; // Original or sanitized name
   fileType: "pdf" | "markdown" | "image" | "other";
   modelId?: string; // Required for PDF/OCR
-  parentId: number;
+  parentId: FolderId;
   chunks?: Omit<TextChunk, "text">[]; // Pre-existing chunks
   existingFileNames: string[]; // For rename collision handling
   uploadFilesAction: (
@@ -40,7 +81,7 @@ export interface ProcessFileOptions {
       file: File;
       chunks?: Omit<TextChunk, "text">[];
     }>,
-    parentId: number,
+    parentId: FolderId,
   ) => Promise<void>;
   updateJob: (update: {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -88,10 +129,10 @@ export const FileProcessingService = {
 
         updateJob({
           status: "extracting",
-          subStatus: `Batching ${allPageFiles.length} pages for extraction...`,
+          subStatus: `Extracting text from ${allPageFiles.length} pages...`,
         });
 
-        // OCR Execution
+        // OCR Execution - Process all batches in parallel
         const OCR_BATCH_SIZE = 3;
         const MAX_OCR_RETRIES = 2;
         const pageBatches: File[][] = [];
@@ -100,47 +141,53 @@ export const FileProcessingService = {
         }
 
         const totalBatches = pageBatches.length;
-        const results: Array<
-          | { status: "fulfilled"; value: string }
-          | { status: "rejected"; reason: unknown }
-        > = new Array(totalBatches);
+        let completedCount = 0;
 
-        // Process batches with limited concurrency handled by the loop/promise structure
-        for (let i = 0; i < pageBatches.length; i++) {
-          const batch = pageBatches[i];
+        // Process all batches in parallel
+        const batchPromises = pageBatches.map(async (batch, index) => {
           try {
             const result = await retryAsync(
               () => useChatStore.getState().executeOcrOnImages(batch, modelId),
               MAX_OCR_RETRIES,
               2000,
               (attempt) => {
-                updateJob({
-                  subStatus: `OCR batch ${i + 1}/${totalBatches} failed, retrying (${attempt}/${MAX_OCR_RETRIES})...`,
-                });
+                console.log(
+                  `OCR batch ${index + 1}/${totalBatches} retry ${attempt}/${MAX_OCR_RETRIES}`,
+                );
               },
             );
-            results[i] = { status: "fulfilled", value: result };
+            completedCount++;
+            updateJob({
+              progress: 45 + (completedCount / totalBatches) * 45,
+              subStatus: `Extracted ${completedCount}/${totalBatches} batches...`,
+            });
+            return { index, status: "fulfilled" as const, value: result };
           } catch (e) {
             console.error("Batch failed completely", {
-              batchIndex: i + 1,
+              batchIndex: index + 1,
               error: e,
             });
-            results[i] = { status: "rejected", reason: e };
+            completedCount++;
+            updateJob({
+              progress: 45 + (completedCount / totalBatches) * 45,
+              subStatus: `Extracted ${completedCount}/${totalBatches} batches...`,
+            });
+            return { index, status: "rejected" as const, reason: e };
           }
+        });
 
-          const completedCount = i + 1;
-          // 45% -> 90% for OCR
-          const extractionProgress = (completedCount / totalBatches) * 45;
-          updateJob({
-            progress: 45 + extractionProgress,
-            subStatus: `Extracted text from batch ${completedCount}/${totalBatches}.`,
-          });
-        }
+        // Wait for all batches to complete
+        const batchResults = await Promise.all(batchPromises);
+
+        // Sort results by original index to maintain page order
+        const results = batchResults.sort((a, b) => a.index - b.index);
 
         const successfulResults = results
           .filter(
-            (r): r is { status: "fulfilled"; value: string } =>
-              r?.status === "fulfilled" && !!r.value?.trim(),
+            (
+              r,
+            ): r is { index: number; status: "fulfilled"; value: string } =>
+              r.status === "fulfilled" && !!r.value?.trim(),
           )
           .map((r) => r.value);
 
@@ -157,23 +204,13 @@ export const FileProcessingService = {
           type: "text/markdown",
         });
 
-        // Embedding
-        updateJob({ status: "embedding", subStatus: "Embedding content..." });
-        const { embedFileContent } = useEmbeddingStore.getState();
-        const chunksWithText = await embedFileContent(allMarkdown, (p) =>
-          updateJob({
-            progress: 90 + p * 0.1, // 90-100% for embedding
-            subStatus: `Embedding... ${Math.round(p)}%`,
-          }),
-        );
-
-        // Explicitly map properties to avoid destructuring unused variables
-        const finalChunks = chunksWithText.map((c) => ({
-          chunk_index: c.chunk_index,
-          start_char: c.start_char,
-          end_char: c.end_char,
-          embedding: c.embedding, // number[]
-        }));
+        // Create placeholder chunks (embeddings will be generated later if needed)
+        updateJob({
+          status: "embedding",
+          subStatus: "Creating text chunks...",
+          progress: 95,
+        });
+        const finalChunks = createPlaceholderChunks(allMarkdown);
 
         updateJob({
           status: "uploading",
@@ -188,24 +225,14 @@ export const FileProcessingService = {
         isTextMimeType(file.type, fileName)
       ) {
         if (!chunks) {
-          updateJob({ status: "embedding", subStatus: "Embedding content..." });
-          const { embedFileContent } = useEmbeddingStore.getState();
+          // Create placeholder chunks (embeddings will be generated later if needed)
+          updateJob({
+            status: "embedding",
+            subStatus: "Creating text chunks...",
+            progress: 50,
+          });
           const fileContent = await file.text();
-
-          const chunksWithText = await embedFileContent(fileContent, (p) =>
-            updateJob({
-              progress: p * 0.9, // 0-90% for embedding
-              subStatus: `Embedding... ${Math.round(p)}%`,
-            }),
-          );
-
-          // Explicitly map properties to avoid destructuring unused variables
-          const finalChunks = chunksWithText.map((c) => ({
-            chunk_index: c.chunk_index,
-            start_char: c.start_char,
-            end_char: c.end_char,
-            embedding: c.embedding,
-          }));
+          const finalChunks = createPlaceholderChunks(fileContent);
 
           updateJob({
             status: "uploading",

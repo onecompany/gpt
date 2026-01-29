@@ -173,6 +173,7 @@ html {
 
 .markdown-content h2 {
   font-size: 1.25rem;
+  margin-top: 0.25rem;
 }
 
 .markdown-content h3 {
@@ -191,6 +192,7 @@ html {
 
 .markdown-content li {
   margin-bottom: 0.25em;
+  list-style: auto;
 }
 
 .markdown-content code:not(pre code) {

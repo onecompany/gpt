@@ -454,11 +454,11 @@ export const createWriteActions: StateCreator<
         fileName: job.fileName,
         fileType: job.fileType,
         modelId: job.modelId,
-        parentId: Number(currentFolderId), // Pass as number to utility, service maps it back to FolderId
+        parentId: currentFolderId,
         chunks: job.chunks,
         existingFileNames: existingNames,
         uploadFilesAction: async (files, parentId) =>
-          get().uploadFiles(files, parentId as unknown as FolderId),
+          get().uploadFiles(files, parentId),
         updateJob: (update) => {
           set((state) => {
             const current = state.fileProcessingJobs[jobId];

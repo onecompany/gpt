@@ -28,7 +28,7 @@ use std::{
     time::{Duration, Instant},
 };
 use tokio::sync::broadcast;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info, instrument, warn};
 
 use super::extended_usage::ExtendedTokenUsage;
 use super::provider::Provider;
@@ -48,6 +48,9 @@ type ChatResponseStream =
 /// * `stream_key` - Unique identifier for this stream (for logging/broadcasting)
 /// * `tx` - Broadcast sender for streaming responses to WebSocket clients
 /// * `provider` - Detected AI provider for provider-specific parsing
+///
+/// Uses skip_all to prevent logging of request content and response text.
+#[instrument(skip_all, fields(stream_key = %stream_key, provider = %provider.name()))]
 pub(super) async fn handle_stream(
     client: &Client<OpenAIConfig>,
     req: ExtendedChatCompletionRequest,
@@ -65,6 +68,7 @@ pub(super) async fn handle_stream(
     process_stream(stream, stream_key.to_string(), tx, provider).await
 }
 
+#[instrument(skip_all, fields(stream_key = %stream_key, provider = %provider.name()))]
 async fn process_stream(
     mut stream: ChatResponseStream,
     stream_key: String,
@@ -267,13 +271,13 @@ fn handle_stream_chunk(
                 error = %e,
                 "Error receiving chunk from provider stream."
             );
-            // Log the raw error details if available for debugging provider issues
-            if let OpenAIError::JSONDeserialize(ref json_err, ref content) = e {
+            // Log error details but redact potentially sensitive content
+            if let OpenAIError::JSONDeserialize(ref json_err, ref _content) = e {
                 warn!(
                     stream_key,
                     json_error = %json_err,
-                    content = %content,
-                    "Provider sent invalid JSON or error payload"
+                    content_len = _content.len(),
+                    "Provider sent invalid JSON or error payload (content redacted)"
                 );
             }
             let node_err = NodeError::from(e);

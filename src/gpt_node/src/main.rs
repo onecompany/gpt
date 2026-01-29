@@ -24,6 +24,8 @@ use tracing_subscriber::{
     EnvFilter, fmt, fmt::time::ChronoUtc, layer::SubscriberExt, util::SubscriberInitExt,
 };
 
+use crate::core::sensitive::SensitiveDataFilter;
+
 use crate::api::create_router;
 use crate::bootstrap::perform_startup;
 use crate::lifecycle::{
@@ -68,6 +70,9 @@ async fn main() -> AnyhowResult<()> {
             .unwrap_or_else(|_| "gpt_node=info,tower_http=info,ic_agent=warn".into()),
     );
 
+    // Add sensitive data filter to prevent logging of message content, tokens, etc.
+    let sensitive_filter = SensitiveDataFilter::new().with_max_field_length(200);
+
     match log_format.as_str() {
         "json" => {
             let json_layer = tracing_bunyan_formatter::JsonStorageLayer;
@@ -75,7 +80,11 @@ async fn main() -> AnyhowResult<()> {
                 "gpt_node".into(),
                 non_blocking_writer,
             );
-            base_subscriber.with(json_layer).with(bunyan_layer).init();
+            base_subscriber
+                .with(sensitive_filter)
+                .with(json_layer)
+                .with(bunyan_layer)
+                .init();
         }
         _ => {
             let fmt_layer = fmt::layer()
@@ -87,7 +96,7 @@ async fn main() -> AnyhowResult<()> {
                 .with_ansi(true)
                 .with_timer(ChronoUtc::new("%T%.3f".to_string()))
                 .compact();
-            base_subscriber.with(fmt_layer).init();
+            base_subscriber.with(sensitive_filter).with(fmt_layer).init();
         }
     }
 

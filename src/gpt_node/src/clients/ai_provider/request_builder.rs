@@ -25,8 +25,11 @@ use gpt_types::domain::Model;
 use gpt_types::domain::message::ImageAttachment;
 use serde_json::Value;
 use std::collections::HashMap;
-use tracing::{debug, info, warn};
+use tracing::{debug, info, instrument, warn};
 
+/// Build an AI provider request from internal representation.
+/// Uses skip_all to prevent logging of message content and sensitive data.
+#[instrument(skip_all, fields(max_context = request.max_context))]
 pub(super) async fn build_request(
     request: &OpenAIRequest,
     state: &AppState,

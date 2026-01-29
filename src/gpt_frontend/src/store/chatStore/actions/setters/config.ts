@@ -1,7 +1,7 @@
 import { StateCreator } from "zustand";
 import { Model, CompressionLevel, RenderMode, Tool } from "../../../../types";
 import { ChatStoreState } from "../../index";
-import { availableTools, chatParameterOptions } from "@/constants/constants";
+import { chatParameterOptions } from "@/constants/constants";
 
 // Removed unused _state parameter
 const handleModelChange = (model: Model | null): Partial<ChatStoreState> => {
@@ -15,11 +15,8 @@ const handleModelChange = (model: Model | null): Partial<ChatStoreState> => {
     calculatedContext,
   );
 
-  const maxTools = model.max_tools ?? 0;
-  const newSelectedTools = availableTools.slice(0, maxTools);
   return {
     selectedModel: model,
-    selectedTools: newSelectedTools,
     maxOutput: newMaxOutput,
     maxContext: newMaxContext,
     reasoningEffort: "medium", // Reset effort on model change

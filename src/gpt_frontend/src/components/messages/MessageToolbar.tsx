@@ -1,5 +1,6 @@
 import React, { memo, useState } from "react";
 import { useAuthStore, AuthStatus } from "@/store/authStore";
+import { useChatStore } from "@/store/chatStore";
 import { Message } from "@/types";
 import {
   PencilSimple,
@@ -40,6 +41,7 @@ export const MessageToolbar: React.FC<MessageToolbarProps> = memo(
     onRetry,
   }) => {
     const authStatus = useAuthStore((state) => state.authStatus);
+    const renderMode = useChatStore((state) => state.renderMode);
     const [showInfoModal, setShowInfoModal] = useState(false);
 
     if (!message) {
@@ -181,7 +183,7 @@ export const MessageToolbar: React.FC<MessageToolbarProps> = memo(
     return (
       <>
         <div
-          className={`flex items-center text-[0.9375rem] ${isUser ? " mt-2" : " mt-2"}`}
+          className={`flex items-center text-[0.9375rem] ${isUser || renderMode === "plain" ? " mt-2" : ""}`}
         >
           {buttons}
         </div>

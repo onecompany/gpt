@@ -25,7 +25,7 @@ export const TextRenderer: React.FC<TextRendererProps> = ({
 
   // Plain text mode - original behavior
   return (
-    <div className="whitespace-pre-wrap wrap-break-word text-zinc-300 font-system text-base leading-7">
+    <div className="whitespace-pre-wrap wrap-break-word text-zinc-300 font-system text-base leading-6.5">
       {content}
     </div>
   );

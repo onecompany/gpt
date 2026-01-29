@@ -27,7 +27,7 @@ pub use types::AIResponse;
 use provider::Provider;
 use std::{sync::atomic::Ordering, time::Instant};
 use tokio::sync::broadcast;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info, instrument, warn};
 
 pub const BROADCAST_CHANNEL_CAPACITY: usize = 100;
 const TOKEN_ESTIMATION_FACTOR: f64 = 4.0;
@@ -39,6 +39,9 @@ const TOKEN_ESTIMATION_FACTOR: f64 = 4.0;
 /// 2. Builds a provider-specific request
 /// 3. Handles streaming responses with provider-specific parsing
 /// 4. Returns the final response with usage information
+///
+/// Uses skip_all to prevent logging of message content and response data.
+#[instrument(skip_all, fields(stream_key = %stream_key, provider_model = %state.provider_model))]
 pub async fn process_request(
     request: OpenAIRequest,
     stream_key: String,
