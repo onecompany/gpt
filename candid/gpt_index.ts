@@ -463,10 +463,12 @@ export interface Model {
     output_token_price: number;
     provider_model: string;
     provider_endpoint: string;
+    is_featured: boolean;
     input_token_price: number;
     is_reasoning: boolean;
     model_id: string;
     aa_score?: number;
+    is_embedding: boolean;
     max_context: number;
 }
 export enum MeasurementStatus {
@@ -851,10 +853,12 @@ function from_candid_record_n31(value: {
     output_token_price: number;
     provider_model: string;
     provider_endpoint: string;
+    is_featured: boolean;
     input_token_price: number;
     is_reasoning: boolean;
     model_id: string;
     aa_score: [] | [number];
+    is_embedding: boolean;
     max_context: number;
 }): {
     maker: string;
@@ -870,10 +874,12 @@ function from_candid_record_n31(value: {
     output_token_price: number;
     provider_model: string;
     provider_endpoint: string;
+    is_featured: boolean;
     input_token_price: number;
     is_reasoning: boolean;
     model_id: string;
     aa_score?: number;
+    is_embedding: boolean;
     max_context: number;
 } {
     return {
@@ -890,10 +896,12 @@ function from_candid_record_n31(value: {
         output_token_price: value.output_token_price,
         provider_model: value.provider_model,
         provider_endpoint: value.provider_endpoint,
+        is_featured: value.is_featured,
         input_token_price: value.input_token_price,
         is_reasoning: value.is_reasoning,
         model_id: value.model_id,
         aa_score: record_opt_to_undefined(from_candid_opt_n35(value.aa_score)),
+        is_embedding: value.is_embedding,
         max_context: value.max_context
     };
 }
@@ -1642,10 +1650,12 @@ function to_candid_record_n8(value: {
     output_token_price: number;
     provider_model: string;
     provider_endpoint: string;
+    is_featured: boolean;
     input_token_price: number;
     is_reasoning: boolean;
     model_id: string;
     aa_score?: number;
+    is_embedding: boolean;
     max_context: number;
 }): {
     maker: string;
@@ -1661,10 +1671,12 @@ function to_candid_record_n8(value: {
     output_token_price: number;
     provider_model: string;
     provider_endpoint: string;
+    is_featured: boolean;
     input_token_price: number;
     is_reasoning: boolean;
     model_id: string;
     aa_score: [] | [number];
+    is_embedding: boolean;
     max_context: number;
 } {
     return {
@@ -1681,10 +1693,12 @@ function to_candid_record_n8(value: {
         output_token_price: value.output_token_price,
         provider_model: value.provider_model,
         provider_endpoint: value.provider_endpoint,
+        is_featured: value.is_featured,
         input_token_price: value.input_token_price,
         is_reasoning: value.is_reasoning,
         model_id: value.model_id,
         aa_score: value.aa_score ? candid_some(value.aa_score) : candid_none(),
+        is_embedding: value.is_embedding,
         max_context: value.max_context
     };
 }

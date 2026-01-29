@@ -20,7 +20,7 @@ pub fn add_message(req: AddMessageRequest) -> AddMessageResult {
     let caller = ic_cdk::api::msg_caller();
     verify_owner(caller)?;
 
-    // Check Model Status
+    // Check Model Status and embedding-specific constraints
     MODELS.with(|models| {
         let m = models.borrow();
         let model = m.get(&StorableString(req.model_id.clone())).ok_or(CanisterError::ModelNotFound)?;
@@ -29,6 +29,19 @@ pub fn add_message(req: AddMessageRequest) -> AddMessageResult {
                 "Model {} is currently paused.",
                 req.model_id
             )));
+        }
+        // Embedding models have specific constraints
+        if model.0.is_embedding {
+            if req.attachments.is_some() {
+                return Err(CanisterError::InvalidInput(
+                    "Embedding models do not support attachments.".to_string(),
+                ));
+            }
+            if req.reasoning_effort.is_some() {
+                return Err(CanisterError::InvalidInput(
+                    "Embedding models do not support reasoning_effort.".to_string(),
+                ));
+            }
         }
         Ok(())
     })?;

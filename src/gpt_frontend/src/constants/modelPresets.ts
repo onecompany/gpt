@@ -17,6 +17,8 @@ export interface BackendModelPreset {
   status: { Active: null } | { Paused: null };
   extra_body_json?: string;
   is_reasoning?: boolean;
+  is_embedding?: boolean;
+  is_featured?: boolean;
 }
 
 export const MODEL_PRESETS: BackendModelPreset[] = [
@@ -48,25 +50,8 @@ export const MODEL_PRESETS: BackendModelPreset[] = [
       },
     }),
     is_reasoning: false,
-  },
-  {
-    model_id: "deepinfra-kimi-k2-thinking",
-    name: "Kimi K2 Thinking",
-    description: "Kimi K2 Thinking model, provided via DeepInfra.",
-    max_context: 262_144,
-    max_output: 131_072,
-    input_token_price: 0.5 / 1_000_000.0,
-    output_token_price: 2.15 / 1_000_000.0,
-    maker: "moonshotai",
-    provider: "deepinfra",
-    provider_model: "moonshotai/Kimi-K2-Thinking",
-    provider_endpoint: "https://api.deepinfra.com/v1/openai",
-    max_image_attachments: 0,
-    max_tools: 10,
-    aa_score: [67],
-    release_date: ["November 6, 2025"],
-    status: { Active: null },
-    is_reasoning: true,
+    is_embedding: false,
+    is_featured: false,
   },
   {
     model_id: "xai-grok-4-1-fast-non-reasoning",
@@ -86,25 +71,8 @@ export const MODEL_PRESETS: BackendModelPreset[] = [
     release_date: ["November 19, 2025"],
     status: { Active: null },
     is_reasoning: false,
-  },
-  {
-    model_id: "deepinfra-qwen3-vl-235b-a22b-instruct",
-    name: "Qwen3 VL 235B",
-    description: "Qwen3 VL 235B-A22B model, provided via DeepInfra.",
-    max_context: 262_144,
-    max_output: 131_072,
-    input_token_price: 0.3 / 1_000_000.0,
-    output_token_price: 1.49 / 1_000_000.0,
-    maker: "qwen",
-    provider: "deepinfra",
-    provider_model: "Qwen/Qwen3-VL-235B-A22B-Instruct",
-    provider_endpoint: "https://api.deepinfra.com/v1/openai",
-    max_image_attachments: 5,
-    max_tools: 10,
-    aa_score: [54],
-    release_date: ["September 23, 2025"],
-    status: { Active: null },
-    is_reasoning: false,
+    is_embedding: false,
+    is_featured: true,
   },
   {
     model_id: "groq-gpt-oss-20b",
@@ -124,6 +92,8 @@ export const MODEL_PRESETS: BackendModelPreset[] = [
     release_date: ["August 5, 2025"],
     status: { Active: null },
     is_reasoning: false,
+    is_embedding: false,
+    is_featured: true,
   },
   {
     model_id: "deepinfra-qwen3-vl-30b-a3b-instruct",
@@ -143,6 +113,8 @@ export const MODEL_PRESETS: BackendModelPreset[] = [
     release_date: ["September 23, 2025"],
     status: { Active: null },
     is_reasoning: false,
+    is_embedding: false,
+    is_featured: true,
   },
   {
     model_id: "groq-qwen-3-32b",
@@ -162,6 +134,8 @@ export const MODEL_PRESETS: BackendModelPreset[] = [
     release_date: ["April 29, 2025"],
     status: { Active: null },
     is_reasoning: false,
+    is_embedding: false,
+    is_featured: true,
   },
   {
     model_id: "groq-llama-4-maverick",
@@ -181,6 +155,8 @@ export const MODEL_PRESETS: BackendModelPreset[] = [
     release_date: ["April 5, 2025"],
     status: { Active: null },
     is_reasoning: false,
+    is_embedding: false,
+    is_featured: true,
   },
   {
     model_id: "groq-llama-4-scout",
@@ -200,5 +176,28 @@ export const MODEL_PRESETS: BackendModelPreset[] = [
     release_date: ["April 5, 2025"],
     status: { Active: null },
     is_reasoning: false,
+    is_embedding: false,
+    is_featured: true,
+  },
+  {
+    model_id: "deepinfra-qwen3-embedding-8b",
+    name: "Qwen3 Embedding 8B",
+    description: "Qwen3 Embedding 8B model for text embeddings, provided via DeepInfra.",
+    max_context: 32_768,
+    max_output: 0,
+    input_token_price: 0.05 / 1_000_000.0,
+    output_token_price: 0.0,
+    maker: "qwen",
+    provider: "deepinfra",
+    provider_model: "Qwen/Qwen3-Embedding-8B",
+    provider_endpoint: "https://api.deepinfra.com/v1/openai",
+    max_image_attachments: 0,
+    max_tools: 0,
+    aa_score: [],
+    release_date: ["2025"],
+    status: { Active: null },
+    is_reasoning: false,
+    is_embedding: true,
+    is_featured: false,
   },
 ];

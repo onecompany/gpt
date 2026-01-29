@@ -8,6 +8,7 @@
 //! - Broadcast channel management for WebSocket streaming
 
 mod context;
+mod embedding_handler;
 mod extended_usage;
 mod provider;
 mod request_builder;
@@ -79,6 +80,17 @@ pub async fn process_request(
         warn!(error = ?e, "Could not fetch model details from state.");
         NodeError::Configuration("Could not retrieve model details.".to_string())
     })?;
+
+    // Route embedding models to the embedding handler
+    if model_details.is_embedding {
+        info!(
+            stream_key = %stream_key,
+            model_id = %model_details.model_id,
+            "Routing to embedding handler for embedding model."
+        );
+        return embedding_handler::process_embedding_request(request, stream_key, state).await;
+    }
+
     let provider = Provider::from_endpoint(&model_details.provider_endpoint);
     info!(
         provider = %provider.name(),
@@ -178,6 +190,10 @@ fn update_final_metrics(
             let estimated_tokens = match response {
                 AIResponse::Text(text, _) => {
                     (text.len() as f64 / TOKEN_ESTIMATION_FACTOR).ceil() as u64
+                }
+                AIResponse::Embedding(embedding, _) => {
+                    // Embeddings are fixed-size vectors, estimate based on dimensions
+                    (embedding.len() as u64) / 4
                 }
                 _ => 0,
             };

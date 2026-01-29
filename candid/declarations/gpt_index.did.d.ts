@@ -133,10 +133,12 @@ export interface Model {
   'output_token_price' : number,
   'provider_model' : string,
   'provider_endpoint' : string,
+  'is_featured' : boolean,
   'input_token_price' : number,
   'is_reasoning' : boolean,
   'model_id' : string,
   'aa_score' : [] | [number],
+  'is_embedding' : boolean,
   'max_context' : number,
 }
 export type ModelStatus = { 'Paused' : null } |

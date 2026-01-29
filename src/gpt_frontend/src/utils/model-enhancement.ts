@@ -2,7 +2,9 @@ import { Model, ModelType, ModelStatus } from "@/types";
 import type { Model as BackendModel } from "@candid/declarations/gpt_index.did";
 import { fromOpt, getVariantKey } from "./candidUtils";
 
-export const enhanceModel = (backendModel: BackendModel): Model => {
+export const enhanceModel = (
+  backendModel: BackendModel & { is_featured: boolean },
+): Model => {
   const {
     model_id,
     max_context,
@@ -21,6 +23,8 @@ export const enhanceModel = (backendModel: BackendModel): Model => {
     status,
     extra_body_json,
     is_reasoning,
+    is_embedding,
+    is_featured,
   } = backendModel;
 
   const statusKey = getVariantKey(status);
@@ -45,5 +49,7 @@ export const enhanceModel = (backendModel: BackendModel): Model => {
     status: statusEnum,
     extra_body_json: fromOpt(extra_body_json),
     isReasoning: is_reasoning,
+    isEmbedding: is_embedding,
+    isFeatured: is_featured,
   };
 };

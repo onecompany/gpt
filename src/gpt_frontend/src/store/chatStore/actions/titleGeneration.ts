@@ -38,8 +38,9 @@ export const createTitleGenerationActions: StateCreator<
       const { models } = useModelsStore.getState();
       if (!models || models.length === 0) return;
 
+      // Only use featured models for title generation
       const cheapestModel = models
-        .filter((model) => model.nodeCount > 0)
+        .filter((model) => model.nodeCount > 0 && model.isFeatured)
         .sort(
           (a, b) =>
             a.inputTokenPrice +

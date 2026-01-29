@@ -115,7 +115,8 @@ export const createAddMessageActions: StateCreator<
         attachments: backendAttachments,
         tools: selectedTools,
         customPrompt: compiledPrompt,
-        reasoningEffort: reasoningEffort,
+        // Embedding models don't support reasoning_effort
+        reasoningEffort: selectedModel.isEmbedding ? undefined : reasoningEffort,
         parentMessageId: parentId,
       };
 

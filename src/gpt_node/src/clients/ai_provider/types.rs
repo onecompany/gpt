@@ -17,4 +17,5 @@ pub struct ExtendedChatCompletionRequest {
 pub enum AIResponse {
     Text(String, Option<TokenUsage>),
     ToolCall(Vec<ChatCompletionMessageToolCall>, Option<TokenUsage>),
+    Embedding(Vec<f32>, Option<TokenUsage>),
 }

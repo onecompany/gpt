@@ -270,6 +270,37 @@ fn spawn_ai_processing_task(state: SharedState, ctx: JobProcessingContext) {
                         .collect();
                     (JobCompletionResult::ToolCall(gpt_tool_calls), usage)
                 }
+                Ok(AIResponse::Embedding(embedding, usage)) => {
+                    info!(
+                        embedding_dimensions = embedding.len(),
+                        "AI processing finished with an embedding response."
+                    );
+                    // Serialize embedding as JSON string for storage/transport
+                    let embedding_json = match serde_json::to_string(&embedding) {
+                        Ok(json) => json,
+                        Err(e) => {
+                            error!("Failed to serialize embedding: {}", e);
+                            return;
+                        }
+                    };
+                    // Encrypt the embedding JSON before sending to canister
+                    match encrypt_content(&embedding_json, &ctx.chat_key) {
+                        Ok(encrypted_bytes) => {
+                            (JobCompletionResult::Success(encrypted_bytes), usage)
+                        }
+                        Err(e) => {
+                            error!("Failed to encrypt embedding: {}", e);
+                            (
+                                JobCompletionResult::Failure(
+                                    gpt_types::error::MessageErrorStatus::Unknown(
+                                        "Encryption failed".to_string(),
+                                    ),
+                                ),
+                                None,
+                            )
+                        }
+                    }
+                }
                 Err(ref node_err) => {
                     let severity = node_err.severity();
                     error!(error = ?node_err, ?severity, "AI processing failed.");

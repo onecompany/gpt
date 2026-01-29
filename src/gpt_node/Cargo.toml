@@ -8,6 +8,7 @@ gpt_types = { path = "../gpt_types" }
 async-openai = { version = "0.32.2", features = [
   "byot",
   "chat-completion",
+  "embedding",
   "audio",
   "image",
   "model",

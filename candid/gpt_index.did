@@ -116,10 +116,12 @@ type Model = record {
   output_token_price : float64;
   provider_model : text;
   provider_endpoint : text;
+  is_featured : bool;
   input_token_price : float64;
   is_reasoning : bool;
   model_id : text;
   aa_score : opt nat32;
+  is_embedding : bool;
   max_context : nat32;
 };
 type ModelStatus = variant { Paused; Active };

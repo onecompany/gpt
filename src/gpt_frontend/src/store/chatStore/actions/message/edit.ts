@@ -103,7 +103,8 @@ export const createEditActions: StateCreator<
         attachments: backendAttachments,
         tools: selectedTools,
         customPrompt: compiledPrompt,
-        reasoningEffort: reasoningEffort,
+        // Embedding models don't support reasoning_effort
+        reasoningEffort: selectedModel.isEmbedding ? undefined : reasoningEffort,
       };
 
       const result = await UserApi.editUserMessage(

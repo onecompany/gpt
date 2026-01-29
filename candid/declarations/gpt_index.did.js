@@ -58,10 +58,12 @@ export const idlFactory = ({ IDL }) => {
     'output_token_price' : IDL.Float64,
     'provider_model' : IDL.Text,
     'provider_endpoint' : IDL.Text,
+    'is_featured' : IDL.Bool,
     'input_token_price' : IDL.Float64,
     'is_reasoning' : IDL.Bool,
     'model_id' : IDL.Text,
     'aa_score' : IDL.Opt(IDL.Nat32),
+    'is_embedding' : IDL.Bool,
     'max_context' : IDL.Nat32,
   });
   const AddModelRequest = IDL.Record({ 'model' : Model });

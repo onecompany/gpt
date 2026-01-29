@@ -27,6 +27,34 @@ fn validate_extra_json(json_opt: &Option<String>) -> CanisterResult<()> {
     Ok(())
 }
 
+fn validate_model(model: &Model) -> CanisterResult<()> {
+    validate_extra_json(&model.extra_body_json)?;
+
+    // Mutual exclusivity: a model cannot be both reasoning and embedding
+    if model.is_reasoning && model.is_embedding {
+        return Err(CanisterError::InvalidInput(
+            "Model cannot be both reasoning and embedding.".to_string(),
+        ));
+    }
+
+    // Embedding models have specific constraints
+    if model.is_embedding {
+        if model.max_tools > 0 {
+            return Err(CanisterError::InvalidInput(
+                "Embedding models cannot have tools (max_tools must be 0).".to_string(),
+            ));
+        }
+        if model.max_image_attachments > 0 {
+            return Err(CanisterError::InvalidInput(
+                "Embedding models cannot have image attachments (max_image_attachments must be 0)."
+                    .to_string(),
+            ));
+        }
+    }
+
+    Ok(())
+}
+
 #[query]
 pub fn get_models(_req: GetModelsRequest) -> GetModelsResponse {
     ic_cdk::println!("get_models called");
@@ -59,7 +87,7 @@ pub fn add_model(req: AddModelRequest) -> AddModelResult {
         ));
     }
 
-    validate_extra_json(&req.model.extra_body_json)?;
+    validate_model(&req.model)?;
 
     MODELS.with(|models| {
         let mut m = models.borrow_mut();
@@ -90,7 +118,7 @@ pub fn update_model(req: UpdateModelRequest) -> UpdateModelResult {
         ));
     }
 
-    validate_extra_json(&req.model.extra_body_json)?;
+    validate_model(&req.model)?;
 
     MODELS.with(|models| {
         let mut m = models.borrow_mut();

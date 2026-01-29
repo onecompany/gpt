@@ -108,11 +108,24 @@ pub fn validate_generation_request(
         return Err(CanisterError::NodeNotFound);
     }
 
-    if let Some(tools) = tools {
-        let model = MODELS
-            .with(|m| m.borrow().get(&StorableString(model_id.to_string())).map(|w| w.0.clone()))
-            .ok_or(CanisterError::ModelNotFound)?;
+    // Fetch model for validation
+    let model = MODELS
+        .with(|m| m.borrow().get(&StorableString(model_id.to_string())).map(|w| w.0.clone()))
+        .ok_or(CanisterError::ModelNotFound)?;
 
+    // Embedding models do not support tools
+    if model.is_embedding {
+        if let Some(tools) = tools {
+            if !tools.is_empty() {
+                return Err(CanisterError::InvalidInput(
+                    "Embedding models do not support tools.".to_string(),
+                ));
+            }
+        }
+    }
+
+    // Validate tool count against model limit
+    if let Some(tools) = tools {
         if (tools.len() as u32) > model.max_tools {
             return Err(CanisterError::InvalidInput(format!(
                 "Number of tools ({}) exceeds the model's limit of {}.",

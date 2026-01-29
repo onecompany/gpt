@@ -28,4 +28,6 @@ pub struct Model {
     pub status: ModelStatus,
     pub extra_body_json: Option<String>,
     pub is_reasoning: bool,
+    pub is_embedding: bool,
+    pub is_featured: bool,
 }

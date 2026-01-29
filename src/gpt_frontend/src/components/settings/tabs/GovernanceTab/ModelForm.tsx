@@ -33,6 +33,9 @@ const ModelForm: React.FC<ModelFormProps> = ({
         maxImageAttachments: modelToEdit.max_image_attachments,
         maxTools: modelToEdit.max_tools,
         extraBodyJson: modelToEdit.extra_body_json || "",
+        isReasoning: modelToEdit.isReasoning,
+        isEmbedding: modelToEdit.isEmbedding,
+        isFeatured: modelToEdit.isFeatured,
       };
     }
     return {
@@ -50,6 +53,9 @@ const ModelForm: React.FC<ModelFormProps> = ({
       maxImageAttachments: 0,
       maxTools: 0,
       extraBodyJson: "",
+      isReasoning: false,
+      isEmbedding: false,
+      isFeatured: true,
     };
   });
 
@@ -70,6 +76,9 @@ const ModelForm: React.FC<ModelFormProps> = ({
         maxImageAttachments: modelToEdit.max_image_attachments,
         maxTools: modelToEdit.max_tools,
         extraBodyJson: modelToEdit.extra_body_json || "",
+        isReasoning: modelToEdit.isReasoning,
+        isEmbedding: modelToEdit.isEmbedding,
+        isFeatured: modelToEdit.isFeatured,
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -96,6 +105,9 @@ const ModelForm: React.FC<ModelFormProps> = ({
         release_date: [],
         status: { Active: null },
         extra_body_json: formData.extraBodyJson || undefined,
+        is_reasoning: formData.isReasoning,
+        is_embedding: formData.isEmbedding,
+        is_featured: formData.isFeatured,
       };
       await onSubmit(backendModel);
     } catch (e) {
@@ -302,6 +314,67 @@ const ModelForm: React.FC<ModelFormProps> = ({
                 }
                 className={inputClass}
               />
+            </div>
+
+            <div className="col-span-1 md:col-span-2">
+              <label className={labelClass}>Model Type</label>
+              <div className="flex gap-6 mt-2">
+                <label className="flex items-center gap-2 text-sm text-zinc-300 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.isReasoning}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        isReasoning: e.target.checked,
+                        // Mutual exclusivity: uncheck embedding if reasoning is checked
+                        isEmbedding: e.target.checked
+                          ? false
+                          : formData.isEmbedding,
+                      })
+                    }
+                    className="w-4 h-4 rounded border-zinc-600 bg-zinc-800 text-blue-500 focus:ring-0 focus:ring-offset-0"
+                  />
+                  Reasoning Model
+                </label>
+                <label className="flex items-center gap-2 text-sm text-zinc-300 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.isEmbedding}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        isEmbedding: e.target.checked,
+                        // Mutual exclusivity: uncheck reasoning if embedding is checked
+                        isReasoning: e.target.checked
+                          ? false
+                          : formData.isReasoning,
+                      })
+                    }
+                    className="w-4 h-4 rounded border-zinc-600 bg-zinc-800 text-blue-500 focus:ring-0 focus:ring-offset-0"
+                  />
+                  Embedding Model
+                </label>
+                <label className="flex items-center gap-2 text-sm text-zinc-300 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.isFeatured}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        isFeatured: e.target.checked,
+                      })
+                    }
+                    className="w-4 h-4 rounded border-zinc-600 bg-zinc-800 text-blue-500 focus:ring-0 focus:ring-offset-0"
+                  />
+                  Featured
+                </label>
+              </div>
+              <p className="text-xs text-zinc-500 mt-1.5">
+                Reasoning models support chain-of-thought. Embedding models
+                return vector representations. Featured models appear in model
+                selection.
+              </p>
             </div>
 
             <div className="col-span-1 md:col-span-2">

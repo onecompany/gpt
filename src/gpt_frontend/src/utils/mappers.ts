@@ -303,7 +303,7 @@ export const mapBackendFolder = (
 // --- Model Mapping ---
 
 export const mapBackendModelToFrontend = (
-  backendModel: BackendModel,
+  backendModel: BackendModel & { is_featured: boolean },
 ): Model => {
   const statusKey = getVariantKey(backendModel.status);
   const statusEnum: ModelStatus = statusKey === "Active" ? "Active" : "Paused";
@@ -327,6 +327,8 @@ export const mapBackendModelToFrontend = (
     status: statusEnum,
     extra_body_json: fromOpt(backendModel.extra_body_json),
     isReasoning: backendModel.is_reasoning,
+    isEmbedding: backendModel.is_embedding,
+    isFeatured: backendModel.is_featured,
   };
 };
 

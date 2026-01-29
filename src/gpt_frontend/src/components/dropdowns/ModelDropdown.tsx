@@ -203,7 +203,10 @@ export const ModelDropdown: React.FC = () => {
   const { selectedModel, setSelectedModel } = useChatStore();
 
   const sortedModels = useMemo(() => {
-    const activeModels = models.filter((m) => m.status === "Active");
+    // Filter to only show active, featured models with available nodes
+    const activeModels = models.filter(
+      (m) => m.status === "Active" && m.isFeatured,
+    );
     const compatible = activeModels.filter((model) => model.nodeCount > 0);
     const groups: Record<string, Model[]> = {};
 

@@ -178,6 +178,8 @@ export interface Model {
   status: ModelStatus;
   extra_body_json?: string;
   isReasoning: boolean;
+  isEmbedding: boolean;
+  isFeatured: boolean;
 }
 
 export type ModelType =
