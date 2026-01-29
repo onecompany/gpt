@@ -1,0 +1,10 @@
+export { default as GovernanceTab } from "./GovernanceTab";
+export { default as CanistersTab } from "./CanistersTab";
+export { default as ManagersTab } from "./ManagersTab";
+export { default as ModelsTab } from "./ModelsTab";
+export { default as PolicyTab } from "./PolicyTab";
+export { default as PolicyForm } from "./PolicyForm";
+export { default as RegistryTab } from "./RegistryTab";
+export { default as VersionsTab } from "./VersionsTab";
+export { default as VersionsForm } from "./VersionsForm";
+export { default as ModelForm } from "./ModelForm";

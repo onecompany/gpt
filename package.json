@@ -1,0 +1,17 @@
+{
+  "private": true,
+  "workspaces": [
+    "src/gpt_frontend"
+  ],
+  "scripts": {
+    "analyze": "DFX_NETWORK=local npm run analyze --workspace=src/gpt_frontend",
+    "build": "DFX_NETWORK=local npm run build --workspace=src/gpt_frontend",
+    "build:ic": "DFX_NETWORK=ic npm run build --workspace=src/gpt_frontend",
+    "dev": "DFX_NETWORK=local npm run dev --workspace=src/gpt_frontend",
+    "dev:debug": "DFX_NETWORK=local npm run dev:debug --workspace=src/gpt_frontend",
+    "dev:ic": "DFX_NETWORK=ic npm run dev --workspace=src/gpt_frontend"
+  },
+  "devDependencies": {
+    "@icp-sdk/bindgen": "0.2.1"
+  }
+}

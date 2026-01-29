@@ -1,0 +1,17 @@
+[workspace]
+members = [
+  "src/gpt_index",
+  "src/gpt_user",
+  "src/gpt_node",
+  "src/gpt_types",
+  "src/gpt_host",
+  "src/gpt_measurement",
+]
+resolver = "3"
+
+[workspace.package]
+edition = "2024"
+
+[profile.release]
+codegen-units = 1
+panic = "abort"

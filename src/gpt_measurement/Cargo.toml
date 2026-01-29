@@ -1,0 +1,10 @@
+[package]
+name = "gpt_measurement"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1.0.97"
+reqwest = { version = "0.12.24", features = ["blocking", "rustls-tls"] }
+hex = "0.4.3"
+sev-snp-utilities = "1.5.1"

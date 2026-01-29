@@ -1,0 +1,48 @@
+{
+  "name": "gpt-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "analyze": "next experimental-analyze",
+    "build": "next build",
+    "dev": "next dev -H 0.0.0.0",
+    "dev:debug": "next dev --inspect -H 0.0.0.0"
+  },
+  "dependencies": {
+    "@headlessui/react": "2.2.9",
+    "@icp-sdk/auth": "5.0.0",
+    "@icp-sdk/core": "5.0.0",
+    "@noble/hashes": "1.7.1",
+    "@phosphor-icons/react": "2.1.10",
+    "@scure/base": "2.0.0",
+    "age-encryption": "0.3.0",
+    "clsx": "2.1.1",
+    "compressorjs": "1.2.1",
+    "dompurify": "3.3.1",
+    "framer-motion": "12.25.0",
+    "hash-wasm": "4.12.0",
+    "he": "1.2.0",
+    "minisearch": "7.2.0",
+    "next": "16.1.1",
+    "ogl": "1.0.11",
+    "pdfjs-dist": "5.4.530",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-textarea-autosize": "8.5.9",
+    "sonner": "2.0.7",
+    "tailwind-merge": "3.4.0",
+    "tailwindcss-safe-area": "^1.3.0",
+    "zustand": "5.0.9"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "4.1.18",
+    "@types/he": "1.2.3",
+    "@types/node": "25.0.6",
+    "@types/react": "19.2.8",
+    "@types/react-dom": "19.2.3",
+    "babel-plugin-react-compiler": "1.0.0",
+    "postcss": "8.5.6",
+    "tailwindcss": "4.1.18",
+    "typescript": "5.9.3"
+  }
+}

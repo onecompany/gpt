@@ -1,0 +1,52 @@
+[package]
+name = "gpt_host"
+version = "0.3.0"
+edition = "2024"
+
+[dependencies]
+gpt_types = { path = "../gpt_types" }
+anyhow = "1.0"
+clap = { version = "4.1.8", features = ["derive"] }
+msru = "0.2.0"
+colorful = "0.3.2"
+sev = { version = "7.1.0", default-features = false, features = [
+  "snp",
+  "crypto_nossl",
+  "serde",
+] }
+libc = "0.2"
+reqwest = { version = "0.12.12", default-features = false, features = [
+  "json",
+  "blocking",
+  "rustls-tls",
+  "stream",
+] }
+base64 = "0.22.1"
+sha2 = "0.10.8"
+dirs = "6.0.0"
+rand = { version = "0.9.0", features = ["std_rng"] }
+hex = "0.4.3"
+hkdf = "0.12.4"
+age = "0.11.1"
+zeroize = "1.8.1"
+x25519-dalek = "2.0.1"
+bech32 = "0.11.0"
+bitflags = "2.10.0"
+uuid = { version = "1.18", features = ["serde"] }
+serde_bytes = "0.11.19"
+ic-agent = "0.38.2"
+candid = "0.10.18"
+tokio = { version = "1.40.0", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+nix = { version = "0.27", features = ["process", "signal", "user"] }
+regex = "1.10"
+fs2 = "0.4"
+axum = { version = "0.7.5", features = ["ws", "http2"] }
+tower = { version = "0.4", features = ["util"] }
+tower-http = { version = "0.5", features = ["trace", "cors"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+hyper = { version = "1.0", features = ["full"] }
+hyper-util = { version = "0.1", features = ["full"] }
+http-body-util = "0.1"
+futures = "0.3"

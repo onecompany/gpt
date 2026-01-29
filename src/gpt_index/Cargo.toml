@@ -1,0 +1,31 @@
+[package]
+name = "gpt_index"
+version = "0.2.0"
+edition = "2024"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+gpt_types = { path = "../gpt_types" }
+candid = "0.10.18"
+ic-cdk = "0.18.7"
+ic-cdk-macros = "0.18.7"
+ic-cdk-timers = "0.12.2"
+ic-stable-structures = "0.6.4"
+sev = { version = "7.1.0", default-features = false, features = [
+  "snp",
+  "crypto_nossl",
+  "serde",
+] }
+hex = "0.4.3"
+getrandom = { version = "0.2", features = ["custom"] }
+sha2 = "0.10.8"
+p384 = { version = "0.13.1", features = ["ecdsa"] }
+signature = { version = "2.2.0", features = ["digest"] }
+serde_bytes = "0.11.19"
+serde_json = "1.0.145"
+serde = "1.0"
+
+[build-dependencies]
+ic-cdk-bindgen = "0.1.3"

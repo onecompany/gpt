@@ -1,0 +1,9 @@
+[package]
+name = "gpt_types"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+candid = "0.10.18"
+serde = { version = "1.0.225", features = ["derive"] }
+serde_bytes = "0.11.19"

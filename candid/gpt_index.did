@@ -1,0 +1,265 @@
+type AddManagerRequest = record { principal_to_add : principal };
+type AddMeasurementRequest = record { name : text; measurement_hex : text };
+type AddModelRequest = record { model : Model };
+type AttestationMeasurement = record {
+  status : MeasurementStatus;
+  updated_at : nat64;
+  name : text;
+  created_at : nat64;
+  measurement_hex : text;
+};
+type AttestationRequirements = record {
+  max_attestation_age_ns : nat64;
+  min_report_version : nat32;
+  require_ciphertext_hiding_enabled : bool;
+  require_tsme_disabled : bool;
+  genoa_policy : GenTcbRequirements;
+  expected_measurement_len : nat64;
+  measurements : vec AttestationMeasurement;
+  require_ecc_enabled : bool;
+  require_smt_disabled : bool;
+  turin_policy : GenTcbRequirements;
+  require_rapl_disabled : bool;
+  milan_policy : GenTcbRequirements;
+};
+type CanisterError = variant {
+  CannotDeleteRootFolder;
+  UserAlreadyRegistered;
+  InvalidFileName : text;
+  DeleteNonEmptyFolder;
+  ModelNotFound;
+  InvalidPathDepth;
+  InvalidInput : text;
+  UnsupportedMimeType : text;
+  PoolExhausted;
+  NoAvailableUserCanister;
+  MessageNotFound;
+  FileSystemLimitExceeded : text;
+  ChatNotFound;
+  Unauthorized;
+  FileNotFound;
+  CallError : text;
+  PathNotFound;
+  ItemNameCollision : text;
+  GenerationInProgress;
+  NodeNotFound;
+  InvalidSecretKey;
+  FolderNotFound;
+  Other : text;
+  TrialExpired;
+  RoleAlreadyClaimed;
+  UserNotFound;
+};
+type CanisterPoolEntry = record {
+  time_created : nat64;
+  canister_id : principal;
+  state : CanisterPoolState;
+};
+type CanisterPoolState = variant {
+  Available;
+  Assigned : record { owner : principal; expires_at : opt nat64 };
+};
+type ConfirmRegistrationRequest = record { user_principal : principal };
+type CreateIndexNodeRequest = record {
+  hostname : text;
+  encrypted_api_key : text;
+  model_id : text;
+  expected_chip_id : text;
+};
+type CreateIndexNodeResponse = record { node_id : nat64 };
+type CreateUserCanisterResponse = record { canister_id : principal };
+type GenTcbRequirements = record {
+  min_tcb : TcbVersion;
+  min_guest_svn : nat32;
+};
+type GetAttestationRequirementsResponse = record {
+  requirements : AttestationRequirements;
+};
+type GetModelsResponse = record { models : vec Model };
+type GetNodeConfigRequest = record { node_id : nat64 };
+type GetNodeConfigResponse = record {
+  hostname : text;
+  encrypted_api_key : text;
+  model_id : text;
+};
+type GetProvisioningInfoResponse = record {
+  owner : principal;
+  hostname : text;
+  is_active : bool;
+  model_id : text;
+};
+type GetUserAssignmentRequest = record { user_principal : principal };
+type GetUserAssignmentResponse = record { assigned_canister : vec principal };
+type HeartbeatResponse = record { command : NodeHeartbeatCommand };
+type IsManagerResponse = record { is_manager : bool };
+type ListActiveNodesResponse = record { nodes : vec PublicNodeInfo };
+type ListCanisterPoolResponse = record {
+  assigned : vec CanisterPoolEntry;
+  available : vec CanisterPoolEntry;
+  pool_target_size : nat32;
+};
+type ListManagersResponse = record { managers : vec principal };
+type ListMyNodesResponse = record { nodes : vec PublicNodeInfo };
+type ListUserCanistersResponse = record { canisters : vec CanisterPoolEntry };
+type MeasurementStatus = variant { Active; Deprecated; Revoked };
+type Model = record {
+  maker : text;
+  status : ModelStatus;
+  max_tools : nat32;
+  max_output : nat32;
+  provider : text;
+  release_date : opt text;
+  extra_body_json : opt text;
+  max_image_attachments : nat32;
+  name : text;
+  description : text;
+  output_token_price : float64;
+  provider_model : text;
+  provider_endpoint : text;
+  input_token_price : float64;
+  is_reasoning : bool;
+  model_id : text;
+  aa_score : opt nat32;
+  max_context : nat32;
+};
+type ModelStatus = variant { Paused; Active };
+type NodeHeartbeatCommand = variant { Continue; Abort; DrainAndShutdown };
+type ProvisionCanistersRequest = record { count : nat32 };
+type ProvisionCanistersResponse = record {
+  pool_size : nat32;
+  canisters_created : nat32;
+};
+type PublicNodeInfo = record {
+  node_id : nat64;
+  public_key : opt text;
+  owner : principal;
+  detected_generation : opt text;
+  hostname : text;
+  attestation_verified_at : opt nat64;
+  reported_measurement_hex : opt text;
+  is_active : bool;
+  model_id : text;
+  reported_chip_id_hex : opt text;
+  node_principal : opt principal;
+  last_heartbeat_timestamp : opt nat64;
+};
+type RawWhoAmIResponse = record { "principal" : principal };
+type RegisterNodeRequest = record {
+  attestation_report : blob;
+  node_id : nat64;
+  ark_der : blob;
+  public_key : text;
+  vek_der : blob;
+  ask_der : blob;
+  timestamp : nat64;
+};
+type RegisterNodeResponse = record { success : bool };
+type RegisterUserRequest = record { username : text };
+type RegisterUserResponse = record {
+  "principal" : principal;
+  username : text;
+  user_id : nat64;
+  user_canister_id : principal;
+};
+type RemoveManagerRequest = record { principal_to_remove : principal };
+type RemoveMeasurementRequest = record { measurement_hex : text };
+type Result = variant { Ok; Err : CanisterError };
+type Result_1 = variant { Ok; Err : CanisterError };
+type Result_10 = variant { Ok : ListActiveNodesResponse; Err : CanisterError };
+type Result_11 = variant { Ok : ListCanisterPoolResponse; Err : CanisterError };
+type Result_12 = variant { Ok : ListManagersResponse; Err : CanisterError };
+type Result_13 = variant { Ok : ListMyNodesResponse; Err : CanisterError };
+type Result_14 = variant {
+  Ok : ListUserCanistersResponse;
+  Err : CanisterError;
+};
+type Result_15 = variant {
+  Ok : ProvisionCanistersResponse;
+  Err : CanisterError;
+};
+type Result_16 = variant { Ok : RegisterNodeResponse; Err : CanisterError };
+type Result_17 = variant { Ok : RegisterUserResponse; Err : CanisterError };
+type Result_2 = variant { Ok : CreateIndexNodeResponse; Err : CanisterError };
+type Result_3 = variant {
+  Ok : CreateUserCanisterResponse;
+  Err : CanisterError;
+};
+type Result_4 = variant {
+  Ok : GetAttestationRequirementsResponse;
+  Err : CanisterError;
+};
+type Result_5 = variant { Ok : GetNodeConfigResponse; Err : CanisterError };
+type Result_6 = variant {
+  Ok : GetProvisioningInfoResponse;
+  Err : CanisterError;
+};
+type Result_7 = variant { Ok : GetUserAssignmentResponse; Err : CanisterError };
+type Result_8 = variant { Ok : HeartbeatResponse; Err : CanisterError };
+type Result_9 = variant { Ok : IsManagerResponse; Err : CanisterError };
+type TcbVersion = record {
+  fmc : nat8;
+  snp : nat8;
+  tee : nat8;
+  bootloader : nat8;
+  microcode : nat8;
+};
+type UpdateAttestationPoliciesRequest = record {
+  max_attestation_age_ns : nat64;
+  min_report_version : nat32;
+  require_ciphertext_hiding_enabled : bool;
+  require_tsme_disabled : bool;
+  genoa_policy : GenTcbRequirements;
+  expected_measurement_len : nat64;
+  require_ecc_enabled : bool;
+  require_smt_disabled : bool;
+  turin_policy : GenTcbRequirements;
+  require_rapl_disabled : bool;
+  milan_policy : GenTcbRequirements;
+};
+type UpdateMeasurementStatusRequest = record {
+  status : MeasurementStatus;
+  measurement_hex : text;
+};
+type WhoAmIResponse = record { "principal" : principal; username : text };
+service : () -> {
+  add_manager : (AddManagerRequest) -> (Result);
+  add_measurement : (AddMeasurementRequest) -> (Result);
+  add_model : (AddModelRequest) -> (Result_1);
+  claim_manager_role : () -> (Result_1);
+  confirm_registration : (ConfirmRegistrationRequest) -> (Result_1);
+  create_node : (CreateIndexNodeRequest) -> (Result_2);
+  // Creates a new user canister and adds it to the pool (manager-only or self-call).
+  // This is the legacy endpoint - for pool management, use provision_canisters.
+  create_user_canister : () -> (Result_3);
+  get_attestation_requirements : (null) -> (Result_4) query;
+  get_models : (null) -> (GetModelsResponse) query;
+  get_node_config : (GetNodeConfigRequest) -> (Result_5) query;
+  get_provisioning_info : (GetNodeConfigRequest) -> (Result_6) query;
+  get_user_assignment : (GetUserAssignmentRequest) -> (Result_7) query;
+  heartbeat : (null) -> (Result_8);
+  is_manager : () -> (Result_9) query;
+  list_active_nodes : (null) -> (Result_10) query;
+  // Lists canister pool status with separation between available and assigned.
+  list_canister_pool : () -> (Result_11) query;
+  list_managers : () -> (Result_12) query;
+  list_my_nodes : (null) -> (Result_13) query;
+  // Lists all canisters in the pool (available and assigned).
+  list_user_canisters : () -> (Result_14) query;
+  // Provisions additional canisters into the pool (manager-only).
+  provision_canisters : (ProvisionCanistersRequest) -> (Result_15);
+  raw_whoami : (null) -> (RawWhoAmIResponse) query;
+  register_node : (RegisterNodeRequest) -> (Result_16);
+  // Registers a new user by assigning them a canister from the pool.
+  // - Managers get permanent canisters (no expiry)
+  // - All other users get trial canisters that expire after 1 hour
+  register_user : (RegisterUserRequest) -> (Result_17);
+  remove_manager : (RemoveManagerRequest) -> (Result_1);
+  remove_measurement : (RemoveMeasurementRequest) -> (Result_1);
+  unregister_node : (null) -> (Result_1);
+  update_attestation_policies : (UpdateAttestationPoliciesRequest) -> (
+      Result_1,
+    );
+  update_measurement_status : (UpdateMeasurementStatusRequest) -> (Result_1);
+  update_model : (AddModelRequest) -> (Result_1);
+  whoami : (null) -> (WhoAmIResponse) query;
+}

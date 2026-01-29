@@ -1,0 +1,152 @@
+name: "Release Unified Host Component"
+
+on:
+  push:
+    paths:
+      - "src/gpt_host/VERSION"
+  workflow_dispatch:
+
+concurrency:
+  group: release-host-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  VCPUS_FOR_MEASUREMENT: "4"
+  # Pin toolchains for reproducibility
+  RUST_TOOLCHAIN: "1.93.0"
+  KUBO_VERSION: "v0.33.0"
+  UBUNTU_SNAPSHOT_ID: "20251203T000000Z"
+  DEBIAN_FRONTEND: noninteractive
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: write
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+      digest: ${{ steps.measurement.outputs.digest }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Read and validate Host Version
+        id: version
+        run: |
+          VERSION=$(tr -d '[:space:]' < "src/gpt_host/VERSION")
+          TAG="host/v${VERSION}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Check if release tag already exists
+        id: tag_check
+        run: |
+          if git rev-parse "${{ steps.version.outputs.tag }}" >/dev/null 2>&1; then
+            echo "tag_exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag_exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # --- BUILD ENVIRONMENT SETUP ---
+      - name: Install system dependencies
+        if: steps.tag_check.outputs.tag_exists == 'false'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential pkg-config libssl-dev
+
+      - name: Set up Docker Buildx
+        if: steps.tag_check.outputs.tag_exists == 'false'
+        uses: docker/setup-buildx-action@v3
+
+      # --- REPRODUCIBLE BUILD SEQUENCE ---
+      # We use the Makefiles directly to ensure the CI environment 
+      # exactly matches the developer's local build environment.
+
+      - name: Build Node binary (musl)
+        if: steps.tag_check.outputs.tag_exists == 'false'
+        run: make build_node
+
+      - name: Build VM OS (initrd + kernel)
+        if: steps.tag_check.outputs.tag_exists == 'false'
+        run: make build_os
+
+      - name: Build OVMF Firmware
+        if: steps.tag_check.outputs.tag_exists == 'false'
+        run: make build_ovmf
+
+      - name: Build Host binary (Embeds VM artifacts)
+        if: steps.tag_check.outputs.tag_exists == 'false'
+        run: make build_host_binary
+
+      - name: Build SEV Measurement tool
+        if: steps.tag_check.outputs.tag_exists == 'false'
+        run: make build_measurement_tool
+
+      # --- MEASUREMENT & VERIFICATION ---
+      - name: Calculate SEV-SNP launch measurement
+        if: steps.tag_check.outputs.tag_exists == 'false'
+        id: measurement
+        run: |
+          # The binary is built for x86_64-unknown-linux-gnu per measurement.mk
+          DIGEST=$(./target/x86_64-unknown-linux-gnu/release/gpt_measurement)
+          echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
+          echo "### SEV-SNP Launch Measurement" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "$DIGEST" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Generate Checksums
+        if: steps.tag_check.outputs.tag_exists == 'false'
+        id: checksums
+        run: |
+          HOST_BIN="target/x86_64-unknown-linux-gnu/release/gpt_host"
+          BIN_SUM=$(sha256sum "$HOST_BIN" | awk '{print $1}')
+          echo "host_sum=$BIN_SUM" >> "$GITHUB_OUTPUT"
+          
+          # Checksums of components embedded inside the host
+          echo "### Embedded Artifact Checksums" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          sha256sum artifacts/vm/* >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+      # --- IPFS & PUBLISH ---
+      - name: Install IPFS (Kubo)
+        if: steps.tag_check.outputs.tag_exists == 'false'
+        run: |
+          curl -fsSL "https://dist.ipfs.tech/kubo/${{ env.KUBO_VERSION }}/kubo_${{ env.KUBO_VERSION }}_linux-amd64.tar.gz" -o kubo.tar.gz
+          tar -xzf kubo.tar.gz
+          sudo ./kubo/install.sh
+
+      - name: Compute IPFS CID
+        if: steps.tag_check.outputs.tag_exists == 'false'
+        id: ipfs
+        run: |
+          CID=$(ipfs add --only-hash -Q target/x86_64-unknown-linux-gnu/release/gpt_host)
+          echo "cid=$CID" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        if: steps.tag_check.outputs.tag_exists == 'false'
+        uses: ncipollo/release-action@v1
+        with:
+          tag: ${{ steps.version.outputs.tag }}
+          name: "GPT Host v${{ steps.version.outputs.version }}"
+          body: |
+            ## GPT Protocol Host Release
+            
+            ### Artifact Verification
+            - **Binary SHA256:** `${{ steps.checksums.outputs.host_sum }}`
+            - **IPFS CID:** `${{ steps.ipfs.outputs.cid }}`
+            
+            ### Confidential Computing (SEV-SNP)
+            - **Launch Measurement:** `${{ steps.measurement.outputs.digest }}`
+            - **vCPU Profile:** ${{ env.VCPUS_FOR_MEASUREMENT }} Cores (EPYC-Milan)
+            
+            This binary includes an embedded, integrity-protected VM image verified for SEV-SNP attestation.
+          artifacts: target/x86_64-unknown-linux-gnu/release/gpt_host
+          token: ${{ secrets.GITHUB_TOKEN }}

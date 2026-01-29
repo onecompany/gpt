@@ -1,0 +1,59 @@
+#!/bin/sh
+# DHCP client hook script for gpt_node VM (used by udhcpc)
+
+calculate_cidr() {
+    netmask=$1
+
+    case "${netmask}" in
+        *.*)
+            # Dotted-quad netmask: convert to CIDR prefix length.
+            /bin/busybox awk -F'.' '
+                {
+                    cidr = 0
+                    for (i = 1; i <= NF; i++) {
+                        n = $i
+                        while (n > 0) {
+                            cidr += (n % 2)
+                            n = int(n / 2)
+                        }
+                    }
+                    print cidr
+                }' <<EOF
+${netmask}
+EOF
+            ;;
+        *)
+            # Already prefix length or empty.
+            echo "${netmask}"
+            ;;
+    esac
+}
+
+case "$1" in
+    deconfig)
+        /bin/busybox ip addr flush dev "${interface}"
+        ;;
+    renew|bound)
+        /bin/busybox ip addr flush dev "${interface}"
+
+        netmask="${mask:-${subnet}}"
+        if [ -z "${netmask}" ] || [ "${netmask}" = "0.0.0.0" ]; then
+            netmask="255.255.255.0"
+        fi
+
+        cidr=$(calculate_cidr "${netmask}")
+        /bin/busybox ip addr add "${ip}/${cidr}" dev "${interface}"
+
+        if [ -n "${router}" ]; then
+            # Ignore failure to delete an existing default route.
+            /bin/busybox ip route del default dev "${interface}" 2>/dev/null || :
+            /bin/busybox ip route add default via "${router}" dev "${interface}"
+        fi
+
+        # Static DNS fallback
+        cat > /etc/resolv.conf <<EODNS
+nameserver 1.1.1.1
+nameserver 8.8.8.8
+EODNS
+        ;;
+esac

@@ -1,0 +1,16 @@
+[package]
+name = "gpt_user"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+gpt_types = { path = "../gpt_types" }
+candid = "0.10.18"
+ic-cdk = "0.18.7"
+ic-cdk-timers = "0.12.2"
+ic-cdk-macros = "0.18.7"
+serde = { version = "1.0.225", features = ["derive"] }
+ic-stable-structures = "0.7.2"

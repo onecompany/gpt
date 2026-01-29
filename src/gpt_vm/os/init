@@ -1,0 +1,219 @@
+#!/bin/sh
+#
+# GPT Node Init Script (PID 1)
+# Runs in a minimal Alpine/BusyBox environment.
+#
+
+# Strict variable checking. We avoid 'set -e' in PID 1 to prevent
+# kernel panics on minor errors; we handle critical errors explicitly.
+set -u
+
+# Ensure essential paths are set
+export PATH="/sbin:/bin:/usr/sbin:/usr/bin:/usr/local/bin"
+
+# Hardcoded configuration for this architecture.
+GPT_NODE_BIN="/usr/local/bin/gpt_node"
+NETWORK_TYPE="local"
+CANISTER_PRINCIPAL="u6s2n-gx777-77774-qaaba-cai"
+RPM_LIMIT="1000"
+CONCURRENCY_LIMIT="200"
+
+# Logs a message to the serial console.
+# Global variables used: None (uses positional args)
+log() {
+	_log_level="$1"
+	shift
+	# Format: [INFO] Message
+	# Redirect to /dev/ttyS0 directly.
+	# We use /bin/busybox echo to ensure consistent behavior.
+	# usage of "|| true" ensures we don't crash if ttyS0 is momentarily missing/busy
+	/bin/busybox echo "[${_log_level}] $*" >/dev/ttyS0 2>&1 || true
+}
+
+# Logs a critical error and powers off the machine.
+die() {
+	log "FATAL" "$@"
+	log "FATAL" "System halting."
+	sync
+	/bin/busybox poweroff -f
+	# Fallback loop if poweroff fails
+	while true; do sleep 3600; done
+}
+
+mount_fs() {
+	log "INFO" "Mounting virtual filesystems..."
+	/bin/busybox mkdir -p /proc /sys /dev /run /tmp /var/run /var/lock
+
+	/bin/busybox mount -t proc proc /proc || die "Failed to mount /proc"
+	/bin/busybox mount -t sysfs sysfs /sys || die "Failed to mount /sys"
+	/bin/busybox mount -t devtmpfs devtmpfs /dev || log "WARN" "Failed to mount devtmpfs (might be mounted by kernel)"
+	/bin/busybox mount -t tmpfs tmpfs /run
+	/bin/busybox mount -t tmpfs tmpfs /tmp
+
+	/bin/busybox ln -sf /proc/self/mounts /etc/mtab
+}
+
+create_devices() {
+	log "INFO" "Creating device nodes..."
+	/bin/busybox mkdir -p /dev/pts
+	/bin/busybox mount -t devpts devpts /dev/pts
+
+	# Standard devices
+	# using [ ! -e ] checks to avoid "File exists" errors if devtmpfs handled it
+	[ ! -e /dev/console ] && /bin/busybox mknod -m 622 /dev/console c 5 1
+	[ ! -e /dev/ptmx ] && /bin/busybox mknod -m 666 /dev/ptmx c 5 2
+	[ ! -e /dev/tty ] && /bin/busybox mknod -m 666 /dev/tty c 5 0
+	[ ! -e /dev/ttyS0 ] && /bin/busybox mknod -m 666 /dev/ttyS0 c 4 64
+	[ ! -e /dev/null ] && /bin/busybox mknod -m 666 /dev/null c 1 3
+	[ ! -e /dev/zero ] && /bin/busybox mknod -m 666 /dev/zero c 1 5
+	[ ! -e /dev/random ] && /bin/busybox mknod -m 444 /dev/random c 1 8
+	[ ! -e /dev/urandom ] && /bin/busybox mknod -m 444 /dev/urandom c 1 9
+}
+
+load_modules() {
+	log "INFO" "Loading kernel modules..."
+	# Order matters for dependencies
+	for _lm_mod in msr tsm_report sev-guest; do
+		if [ -f "/usr/lib/modules/${_lm_mod}.ko" ]; then
+			if ! /bin/busybox insmod "/usr/lib/modules/${_lm_mod}.ko" >/dev/ttyS0 2>&1; then
+				log "WARN" "Failed to load ${_lm_mod}.ko (Built-in or dependency missing?)"
+			fi
+		else
+			log "WARN" "Module ${_lm_mod}.ko not found"
+		fi
+	done
+}
+
+setup_sev_device() {
+	log "INFO" "Configuring SEV-SNP device..."
+
+	# Ensure kernel has time to register the misc device.
+	_ssd_retry=0
+	while [ "${_ssd_retry}" -lt 5 ]; do
+		if grep -q "sev-guest" /proc/misc 2>/dev/null; then
+			break
+		fi
+		_ssd_retry=$((_ssd_retry + 1))
+		sleep 0.1
+	done
+
+	# Dynamic Minor Number Discovery
+	# We must read /proc/misc to find the authoritative minor for 'sev-guest'.
+	_ssd_minor=""
+	if [ -r /proc/misc ]; then
+		# format: <minor> <name>
+		while read -r _ssd_dev_num _ssd_dev_name; do
+			if [ "${_ssd_dev_name}" = "sev-guest" ]; then
+				_ssd_minor="${_ssd_dev_num}"
+				break
+			fi
+		done </proc/misc
+	fi
+
+	if [ -n "${_ssd_minor}" ]; then
+		log "INFO" "Found sev-guest at 10:${_ssd_minor}"
+
+		# Create node if missing, or chmod if present
+		if [ ! -e /dev/sev-guest ]; then
+			/bin/busybox mknod -m 666 /dev/sev-guest c 10 "${_ssd_minor}"
+		else
+			/bin/busybox chmod 666 /dev/sev-guest
+		fi
+	else
+		log "WARN" "sev-guest not found in /proc/misc. Driver loading likely failed."
+	fi
+}
+
+configure_network() {
+	log "INFO" "Configuring network..."
+	echo "gpt-node" >/etc/hostname
+	/bin/busybox hostname -F /etc/hostname
+
+	_cn_script="/usr/local/bin/udhcpc.script"
+	if [ ! -x "${_cn_script}" ]; then
+		log "WARN" "DHCP script ${_cn_script} missing or not executable."
+		return 1
+	fi
+
+	# Bring up interface
+	/bin/busybox ip link set eth0 up
+	/bin/busybox udhcpc -i eth0 -s "${_cn_script}" -q &
+
+	# Wait for IP address
+	_cn_timeout=30
+	_cn_ip=""
+
+	while [ "${_cn_timeout}" -gt 0 ]; do
+		# Robustly parse IP using native shell read loop
+		_cn_ip=$(
+			/bin/busybox ip -4 addr show dev eth0 2>/dev/null |
+				while read -r _cn_token1 _cn_token2 _cn_rest; do
+					if [ "${_cn_token1}" = "inet" ]; then
+						# Remove CIDR suffix (everything after first /)
+						echo "${_cn_token2%%/*}"
+						break
+					fi
+				done
+		)
+
+		if [ -n "${_cn_ip}" ]; then
+			break
+		fi
+		sleep 1
+		_cn_timeout=$((_cn_timeout - 1))
+	done
+
+	if [ -z "${_cn_ip}" ]; then
+		log "WARN" "DHCP timed out."
+	else
+		log "INFO" "Network active (${_cn_ip})."
+	fi
+}
+
+main() {
+	log "INFO" "GPT Protocol Node Booting..."
+
+	mount_fs
+	create_devices
+	load_modules
+	setup_sev_device
+	configure_network
+
+	# Console fixup: ensure /dev/tty points to serial
+	if [ ! -L /dev/tty ]; then
+		rm -f /dev/tty
+		ln -s /dev/ttyS0 /dev/tty
+	fi
+
+	if [ ! -x "${GPT_NODE_BIN}" ]; then
+		die "Binary ${GPT_NODE_BIN} missing."
+	fi
+
+	export RUST_LOG=info,gpt_node=info
+
+	log "INFO" "Starting gpt_node..."
+
+	# Execute the binary. We do not use 'exec' because we want to catch the exit code
+	# for logging purposes before powering off.
+	"${GPT_NODE_BIN}" \
+		--network-type "${NETWORK_TYPE}" \
+		--canister-principal "${CANISTER_PRINCIPAL}" \
+		--rpm "${RPM_LIMIT}" \
+		--concurrency "${CONCURRENCY_LIMIT}" \
+		>/dev/ttyS0 2>&1
+
+	_main_exit_code=$?
+	log "INFO" "gpt_node exited with code ${_main_exit_code}"
+
+	log "INFO" "Powering off..."
+	sync
+	/bin/busybox poweroff -f
+
+	# Halt loop (fallback)
+	while true; do
+		sleep 3600
+	done
+}
+
+# Invoke main
+main

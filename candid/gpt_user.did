@@ -1,0 +1,410 @@
+type AddMessageRequest = record {
+  custom_prompt : opt text;
+  tools : opt vec Tool;
+  node_id : nat64;
+  content : blob;
+  temperature : float32;
+  encrypted_chat_key : opt text;
+  role : Role;
+  parent_message_id : opt nat64;
+  max_completion_tokens : nat32;
+  reasoning_effort : opt text;
+  model_id : text;
+  chat_id : nat64;
+  attachments : opt vec ImageAttachment;
+  max_context : nat32;
+};
+type AddMessageResponse = record {
+  job : Job;
+  ai_message : Message;
+  message : Message;
+};
+type ArchiveChatRequest = record { chat_id : nat64 };
+type ArchiveChatResponse = record { chat : Chat };
+type CanisterError = variant {
+  CannotDeleteRootFolder;
+  UserAlreadyRegistered;
+  InvalidFileName : text;
+  DeleteNonEmptyFolder;
+  ModelNotFound;
+  InvalidPathDepth;
+  InvalidInput : text;
+  UnsupportedMimeType : text;
+  PoolExhausted;
+  NoAvailableUserCanister;
+  MessageNotFound;
+  FileSystemLimitExceeded : text;
+  ChatNotFound;
+  Unauthorized;
+  FileNotFound;
+  CallError : text;
+  PathNotFound;
+  ItemNameCollision : text;
+  GenerationInProgress;
+  NodeNotFound;
+  InvalidSecretKey;
+  FolderNotFound;
+  Other : text;
+  TrialExpired;
+  RoleAlreadyClaimed;
+  UserNotFound;
+};
+type Chat = record {
+  title : text;
+  updated_at : nat64;
+  owner : principal;
+  job_ids : vec nat64;
+  created_at : nat64;
+  message_ids : vec nat64;
+  encryption_salt : blob;
+  chat_id : nat64;
+  temporary : bool;
+  active_job_id : opt nat64;
+  archived : bool;
+};
+type ClaimJobRequest = record { job_id : nat64 };
+type ClaimJobResponse = record {
+  job : Job;
+  tools : opt vec Tool;
+  chat : Chat;
+  message_chain_ids : vec nat64;
+};
+type CompleteJobRequest = record {
+  result : JobCompletionResult;
+  job_id : nat64;
+  usage : opt TokenUsage;
+};
+type ContinueFromToolResponseRequest = record {
+  custom_prompt : opt text;
+  tools : opt vec Tool;
+  node_id : nat64;
+  responses : vec ToolResponseMessage;
+  assistant_message_id : nat64;
+  temperature : float32;
+  encrypted_chat_key : opt text;
+  max_completion_tokens : nat32;
+  reasoning_effort : opt text;
+  model_id : text;
+  chat_id : nat64;
+  max_context : nat32;
+};
+type ContinueFromToolResponseResponse = record {
+  new_ai_message_id : nat64;
+  job_id : nat64;
+};
+type CreateChatRequest = record {
+  custom_prompt : opt text;
+  title : text;
+  tools : opt vec Tool;
+  node_id : nat64;
+  temperature : float32;
+  encrypted_chat_key : opt text;
+  max_completion_tokens : nat32;
+  initial_message : blob;
+  encryption_salt : blob;
+  model_id : text;
+  temporary : bool;
+  attachments : opt vec ImageAttachment;
+  max_context : nat32;
+};
+type CreateChatResponse = record {
+  ai_message_id : nat64;
+  job_id : nat64;
+  chat_id : nat64;
+  user_message_id : nat64;
+};
+type CreateFolderRequest = record { name : text; parent_folder_id : nat64 };
+type CreateFolderResponse = record { folder : FolderInfo };
+type DeleteChatRequest = record { chat_id : nat64 };
+type DeleteItemRequest = record { item_type : FsItemType; item_id : nat64 };
+type EditUserMessageRequest = record {
+  custom_prompt : opt text;
+  old_user_message_id : nat64;
+  tools : opt vec Tool;
+  node_id : nat64;
+  temperature : float32;
+  encrypted_chat_key : opt text;
+  max_completion_tokens : nat32;
+  new_content : blob;
+  reasoning_effort : opt text;
+  model_id : text;
+  chat_id : nat64;
+  attachments : opt vec ImageAttachment;
+  max_context : nat32;
+};
+type EditUserMessageResponse = record {
+  job : Job;
+  new_user_message : Message;
+  new_ai_message : Message;
+};
+type FileInfo = record {
+  id : nat64;
+  updated_at : nat64;
+  name : text;
+  mime_type : text;
+  created_at : nat64;
+  parent_folder_id : nat64;
+  content_size_bytes : nat64;
+  chunks : vec TextChunk;
+};
+type FinalizeRegistrationRequest = record {
+  enc_salt : blob;
+  enc_validator : text;
+};
+type FinalizeRegistrationResponse = record { success : bool };
+type FolderInfo = record {
+  id : nat64;
+  updated_at : nat64;
+  name : text;
+  created_at : nat64;
+};
+type FsItemInfo = variant { Folder : FolderInfo; File : FileInfo };
+type FsItemType = variant { Folder; File };
+type FunctionCall = record { name : text; arguments : text };
+type GenerationStatus = variant { Failed; InProgress; Completed; Pending };
+type GetChatJobsResponse = record { jobs : vec Job };
+type GetChatRequest = record { chat_id : nat64 };
+type GetChatResponse = record { chat : Chat };
+type GetFileContentRequest = record { file_id : nat64 };
+type GetFileContentResponse = record { content : blob; mime_type : text };
+type GetFolderContentRequest = record { folder_id : opt nat64 };
+type GetFolderContentResponse = record {
+  files : vec FileInfo;
+  folder_name : text;
+  folders : vec FolderInfo;
+  parent_folder_id : opt nat64;
+  folder_id : nat64;
+};
+type GetItemByPathRequest = record { path : text };
+type GetItemByPathResponse = record { item : FsItemInfo };
+type GetMessageRequest = record { message_id : nat64 };
+type GetMessageResponse = record { message : Message };
+type GetUserStorageUsageResponse = record {
+  limit_bytes : nat64;
+  usage_bytes : nat64;
+};
+type GptUserGetNodesResponse = record { nodes : vec LocalNode };
+type GptUserListRegisteredUsersResponse = record { users : vec UserDetails };
+type ImageAttachment = record { data : blob; mime_type : text };
+type IsUserFinalizedRequest = record { user_principal : principal };
+type IsUserFinalizedResponse = record { is_finalized : bool };
+type Job = record {
+  custom_prompt : opt text;
+  updated_at : nat64;
+  tools : opt vec Tool;
+  node_id : nat64;
+  temperature : float32;
+  extra_body_json : opt text;
+  encrypted_chat_key : opt text;
+  created_at : nat64;
+  max_completion_tokens : nat32;
+  job_id : nat64;
+  placeholder_message_id : nat64;
+  reasoning_effort : opt text;
+  model_id : text;
+  chat_id : nat64;
+  generation_status : GenerationStatus;
+  max_context : nat32;
+};
+type JobCompletionResult = variant {
+  Success : blob;
+  ToolCall : vec ToolCall;
+  Failure : MessageErrorStatus;
+};
+type ListChatsRequest = record { include_archived : bool };
+type ListChatsResponse = record { chats : vec Chat };
+type LocalNode = record {
+  node_id : nat64;
+  public_key : opt text;
+  address : text;
+  model_id : text;
+  node_principal : opt principal;
+};
+type Message = record {
+  updated_at : nat64;
+  content : blob;
+  tool_calls : opt vec ToolCall;
+  role : Role;
+  parent_message_id : opt nat64;
+  error_status : opt MessageErrorStatus;
+  created_at : nat64;
+  tool_call_id : opt text;
+  requires_client_action : bool;
+  usage : opt TokenUsage;
+  tool_results : opt vec ToolResult;
+  chat_id : nat64;
+  message_id : nat64;
+  attachments : opt vec ImageAttachment;
+};
+type MessageErrorStatus = variant {
+  NodeOffline;
+  ProviderError : ProviderErrorType;
+  Timeout;
+  Unknown : text;
+  ConfigurationError : text;
+  CanisterCallError : text;
+  InvalidState : text;
+};
+type NodeGetMessageRequest = record { message_id : nat64 };
+type NodeGetMessageResponse = record { message : Message };
+type ProviderErrorType = variant {
+  InvalidImage : text;
+  NetworkError;
+  ContentPolicyViolation;
+  ContextLengthExceeded;
+  ServiceUnavailable;
+  RateLimited;
+  Timeout;
+  Unknown : text;
+  AuthenticationError;
+  BadRequest;
+  ServerError;
+};
+type RenameChatRequest = record { new_title : text; chat_id : nat64 };
+type RenameItemRequest = record {
+  item_type : FsItemType;
+  new_name : text;
+  item_id : nat64;
+};
+type RenameItemResponse = record { item : FsItemInfo };
+type Result = variant { Ok : AddMessageResponse; Err : CanisterError };
+type Result_1 = variant { Ok : ArchiveChatResponse; Err : CanisterError };
+type Result_10 = variant { Ok : GetChatResponse; Err : CanisterError };
+type Result_11 = variant { Ok : GetChatJobsResponse; Err : CanisterError };
+type Result_12 = variant { Ok : GetFileContentResponse; Err : CanisterError };
+type Result_13 = variant { Ok : GetFolderContentResponse; Err : CanisterError };
+type Result_14 = variant { Ok : GetItemByPathResponse; Err : CanisterError };
+type Result_15 = variant { Ok : GetMessageResponse; Err : CanisterError };
+type Result_16 = variant { Ok : GptUserGetNodesResponse; Err : CanisterError };
+type Result_17 = variant {
+  Ok : GetUserStorageUsageResponse;
+  Err : CanisterError;
+};
+type Result_18 = variant { Ok : ListChatsResponse; Err : CanisterError };
+type Result_19 = variant {
+  Ok : GptUserListRegisteredUsersResponse;
+  Err : CanisterError;
+};
+type Result_2 = variant { Ok : ClaimJobResponse; Err : CanisterError };
+type Result_20 = variant { Ok : NodeGetMessageResponse; Err : CanisterError };
+type Result_21 = variant { Ok : RenameItemResponse; Err : CanisterError };
+type Result_22 = variant { Ok : RetryAiMessageResponse; Err : CanisterError };
+type Result_23 = variant { Ok : UploadFileResponse; Err : CanisterError };
+type Result_3 = variant { Ok; Err : CanisterError };
+type Result_4 = variant {
+  Ok : ContinueFromToolResponseResponse;
+  Err : CanisterError;
+};
+type Result_5 = variant { Ok : CreateChatResponse; Err : CanisterError };
+type Result_6 = variant { Ok : CreateFolderResponse; Err : CanisterError };
+type Result_7 = variant { Ok; Err : CanisterError };
+type Result_8 = variant { Ok : EditUserMessageResponse; Err : CanisterError };
+type Result_9 = variant {
+  Ok : FinalizeRegistrationResponse;
+  Err : CanisterError;
+};
+type RetryAiMessageRequest = record {
+  custom_prompt : opt text;
+  tools : opt vec Tool;
+  node_id : nat64;
+  temperature : float32;
+  encrypted_chat_key : opt text;
+  max_completion_tokens : nat32;
+  reasoning_effort : opt text;
+  model_id : text;
+  chat_id : nat64;
+  max_context : nat32;
+  user_message_id : nat64;
+};
+type RetryAiMessageResponse = record { job : Job; new_ai_message : Message };
+type Role = variant { System; Tool; User; Assistant };
+type StoreToolResultsRequest = record {
+  assistant_message_id : nat64;
+  results : vec ToolResult;
+  chat_id : nat64;
+};
+type TextChunk = record {
+  chunk_index : nat32;
+  end_char : nat32;
+  start_char : nat32;
+  embedding : blob;
+};
+type TokenUsage = record {
+  completion_tokens : nat32;
+  prompt_tokens : nat32;
+  total_tokens : nat32;
+};
+type Tool = record { name : text; parameters : text; description : text };
+type ToolCall = record { id : text; function : FunctionCall; "type" : text };
+type ToolResponseMessage = record { content : text; tool_call_id : text };
+type ToolResult = record {
+  content : text;
+  error : opt text;
+  tool_call_id : text;
+};
+type UpdateMessageAttachmentsRequest = record {
+  message_id : nat64;
+  attachments : opt vec ImageAttachment;
+};
+type UploadFileRequest = record {
+  content : blob;
+  name : text;
+  mime_type : text;
+  parent_folder_id : nat64;
+  chunks : opt vec TextChunk;
+};
+type UploadFileResponse = record { file : FileInfo };
+type UserDetails = record {
+  enc_salt : opt blob;
+  "principal" : principal;
+  enc_validator : opt text;
+  registered_at : nat64;
+};
+type WhoAmIUserResponse = record {
+  enc_salt : opt blob;
+  "principal" : principal;
+  enc_validator : opt text;
+};
+service : (principal) -> {
+  // The public update method for a user to add a new message to a chat.
+  add_message : (AddMessageRequest) -> (Result);
+  archive_chat : (ArchiveChatRequest) -> (Result_1);
+  claim_job : (ClaimJobRequest) -> (Result_2);
+  // The public update method for a node to submit the result of a generation job.
+  complete_job : (CompleteJobRequest) -> (Result_3);
+  continue_from_tool_response : (ContinueFromToolResponseRequest) -> (Result_4);
+  create_chat : (CreateChatRequest) -> (Result_5);
+  create_folder : (CreateFolderRequest) -> (Result_6);
+  delete_chat : (DeleteChatRequest) -> (Result_3);
+  delete_item : (DeleteItemRequest) -> (Result_7);
+  edit_user_message : (EditUserMessageRequest) -> (Result_8);
+  finalize_registration : (FinalizeRegistrationRequest) -> (Result_9);
+  get_chat : (GetChatRequest) -> (Result_10) query;
+  get_chat_jobs : (GetChatRequest) -> (Result_11) query;
+  get_file_content : (GetFileContentRequest) -> (Result_12) query;
+  get_folder_content : (GetFolderContentRequest) -> (Result_13) query;
+  get_item_by_path : (GetItemByPathRequest) -> (Result_14) query;
+  get_message : (GetMessageRequest) -> (Result_15) query;
+  get_nodes : () -> (Result_16) query;
+  get_user_storage_usage : () -> (Result_17) query;
+  // Checks if a user is finalized (i.e., the canister is bound to them with vault data).
+  // For a single-user canister, this checks if the owner matches and has vault data.
+  is_user_finalized : (IsUserFinalizedRequest) -> (
+      IsUserFinalizedResponse,
+    ) query;
+  list_chats : (ListChatsRequest) -> (Result_18) query;
+  // Returns the single owner of this canister (if bound).
+  // For a single-user canister, this returns a list with at most one user.
+  list_registered_users : () -> (Result_19) query;
+  node_get_message : (NodeGetMessageRequest) -> (Result_20) query;
+  rename_chat : (RenameChatRequest) -> (Result_10);
+  rename_item : (RenameItemRequest) -> (Result_21);
+  retry_ai_message : (RetryAiMessageRequest) -> (Result_22);
+  store_tool_results : (StoreToolResultsRequest) -> (Result_7);
+  unarchive_chat : (GetChatRequest) -> (Result_10);
+  update_message_attachments : (UpdateMessageAttachmentsRequest) -> (Result_7);
+  upload_file : (UploadFileRequest) -> (Result_23);
+  // Returns the caller's identity and vault data.
+  // For a single-user canister, this returns the bound owner's details.
+  whoami : () -> (WhoAmIUserResponse) query;
+}

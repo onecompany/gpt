@@ -1,0 +1,64 @@
+{
+  "canisters": {
+    "gpt_user": {
+      "type": "custom",
+      "candid": "candid/gpt_user.did",
+      "wasm": "target/wasm32-unknown-unknown/release/gpt_user.wasm",
+      "build": [],
+      "declarations": {
+        "bindings": []
+      }
+    },
+    "gpt_index": {
+      "type": "custom",
+      "candid": "candid/gpt_index.did",
+      "wasm": "target/wasm32-unknown-unknown/release/gpt_index.wasm",
+      "build": [],
+      "declarations": {
+        "bindings": []
+      }
+    },
+    "gpt_frontend": {
+      "type": "assets",
+      "source": ["src/gpt_frontend/out"],
+      "build": ["npm run build:ic"],
+      "declarations": {
+        "bindings": []
+      }
+    },
+    "internet_identity": {
+      "type": "custom",
+      "candid": "candid/internet_identity.did",
+      "wasm": "artifacts/internet_identity/internet_identity_dev.wasm",
+      "build": [],
+      "declarations": {
+        "bindings": []
+      },
+      "init_arg": "(opt record { new_flow_origins = opt vec { \"http://uqqxf-5h777-77774-qaaaa-cai.localhost:4943\" }; captcha_config = opt record { max_unsolved_captchas = 50:nat64; captcha_trigger = variant { Static = variant { CaptchaDisabled } } } })",
+      "frontend": {},
+      "remote": {
+        "id": {
+          "ic": "rdmx6-jaaaa-aaaaa-aaadq-cai"
+        }
+      }
+    }
+  },
+  "defaults": {
+    "replica": {
+      "log_level": "error",
+      "subnet_type": "application"
+    }
+  },
+  "networks": {
+    "local": {
+      "bind": "127.0.0.1:4943",
+      "type": "ephemeral"
+    },
+    "ic": {
+      "providers": ["https://icp0.io"],
+      "type": "persistent"
+    }
+  },
+  "output_env_file": ".env",
+  "version": 1
+}
