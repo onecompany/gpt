@@ -6,7 +6,7 @@ use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::time::Duration;
 use tokio::time::sleep;
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 
 pub struct WatcherConfig {
     pub ic_url: String,
@@ -14,8 +14,18 @@ pub struct WatcherConfig {
 }
 
 struct NodeMeta {
+    node_id: u64,
     port: u16,
     hostname: Option<String>,
+}
+
+/// Extracts the subdomain (first label) from a hostname.
+/// Examples:
+/// - "node123.gptprotocol.app" -> "node123"
+/// - "node123" -> "node123"
+/// - "my-node.example.com" -> "my-node"
+fn extract_subdomain(hostname: &str) -> &str {
+    hostname.split('.').next().unwrap_or(hostname)
 }
 
 /// Main loop for the watcher.
@@ -28,7 +38,7 @@ pub async fn run_watcher(
 ) {
     let mut cache: HashMap<u64, NodeMeta> = HashMap::new();
     let re_file = Regex::new(r"gpt_node_(\d+)\.service").unwrap();
-    let re_port = Regex::new(r"--port (\d+)").unwrap();
+    let re_port = Regex::new(r"-p (\d+)").unwrap();
 
     info!("Watcher started. Polling for gpt_node services...");
 
@@ -98,6 +108,7 @@ async fn sync_state(
                     cache.insert(
                         node_id,
                         NodeMeta {
+                            node_id,
                             port,
                             hostname: hostname.clone(),
                         },
@@ -133,11 +144,25 @@ async fn sync_state(
     // Prune cache: remove nodes that no longer have a service file
     cache.retain(|id, _| active_node_ids.contains(id));
 
-    // Rebuild Routing Table (Hostname -> Port)
+    // Rebuild Routing Table with multiple lookup keys per node:
+    // 1. Full hostname (for exact matching)
+    // 2. Subdomain (for wildcard domain matching)
+    // 3. Node ID as string (for direct node_id routing)
     let mut new_table = HashMap::new();
     for meta in cache.values() {
+        // Always add node_id as a routing key (e.g., "123.example.com" -> node 123)
+        new_table.insert(meta.node_id.to_string(), meta.port);
+
         if let Some(host) = &meta.hostname {
+            // Add full hostname for exact matching
             new_table.insert(host.clone(), meta.port);
+
+            // Add subdomain for wildcard domain matching
+            let subdomain = extract_subdomain(host);
+            if subdomain != host {
+                // Only add if subdomain is different from full hostname
+                new_table.insert(subdomain.to_string(), meta.port);
+            }
         }
     }
 
@@ -145,7 +170,7 @@ async fn sync_state(
     {
         let mut w = table.write().await;
         let old_count = w.len();
-        *w = new_table;
+        *w = new_table.clone();
         let new_count = w.len();
         if old_count != new_count {
             info!(
@@ -153,6 +178,8 @@ async fn sync_state(
                 old_count, new_count
             );
         }
+        // Log routing table contents for debugging
+        debug!("Current routing table: {:?}", new_table);
     }
 
     Ok(())

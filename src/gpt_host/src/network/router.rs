@@ -83,24 +83,41 @@ async fn proxy_handler(
     State(state): State<AppState>,
     mut req: Request<Body>,
 ) -> Result<Response, StatusCode> {
-    let host = req
+    let host_header = req
         .headers()
         .get("host")
         .and_then(|h| h.to_str().ok())
-        .ok_or(StatusCode::BAD_REQUEST)?
-        .split(':')
-        .next()
-        .unwrap_or(""); // Strip port if present
+        .ok_or(StatusCode::BAD_REQUEST)?;
 
+    // Strip port if present (e.g., "node123.example.com:443" -> "node123.example.com")
+    let host = host_header.split(':').next().unwrap_or("");
+
+    // Extract subdomain (first label before the first dot)
+    // e.g., "node123.example.com" -> "node123"
+    let subdomain = host.split('.').next().unwrap_or("");
+
+    // Try multiple lookup strategies in order of specificity:
+    // 1. Full hostname (exact match)
+    // 2. Subdomain only (for wildcard domain setups)
     let target_port = {
         let r = state.table.read().await;
-        r.get(host).copied()
+        r.get(host)
+            .or_else(|| r.get(subdomain))
+            .copied()
     };
 
     let port = match target_port {
-        Some(p) => p,
+        Some(p) => {
+            debug!("Route found: {} (subdomain: {}) -> port {}", host, subdomain, p);
+            p
+        }
         None => {
-            debug!("No route found for host: {}", host);
+            debug!(
+                "No route found for host: {} (subdomain: {}). Available routes: {:?}",
+                host,
+                subdomain,
+                state.table.read().await.keys().collect::<Vec<_>>()
+            );
             return Err(StatusCode::NOT_FOUND);
         }
     };
