@@ -1,16 +1,29 @@
+//! AI provider client module.
+//!
+//! This module handles communication with AI providers (OpenAI and compatible APIs).
+//! It includes:
+//! - Request building with provider-specific configurations
+//! - SSE stream handling with provider-specific response parsing
+//! - Extended usage extraction for provider-specific metrics
+//! - Broadcast channel management for WebSocket streaming
+
 mod context;
+mod extended_usage;
+mod provider;
 mod request_builder;
 pub(crate) mod resilient_types;
 mod stream_handler;
 mod types;
+mod usage_parser;
 
 use crate::{
-    core::error::{NodeError, map_node_error_to_message_status},
-    core::state::AppState,
+    core::error::{map_node_error_to_message_status, NodeError},
     core::job::types::{OpenAIRequest, StreamedResponse},
+    core::state::AppState,
 };
 pub use types::AIResponse;
 
+use provider::Provider;
 use std::{sync::atomic::Ordering, time::Instant};
 use tokio::sync::broadcast;
 use tracing::{debug, error, info, warn};
@@ -19,7 +32,12 @@ pub const BROADCAST_CHANNEL_CAPACITY: usize = 100;
 const TOKEN_ESTIMATION_FACTOR: f64 = 4.0;
 
 /// Processes an AI provider request (OpenAI or compatible endpoint).
-/// Renamed from `process_openai_request` for clarity.
+///
+/// This function:
+/// 1. Detects the provider from the model endpoint
+/// 2. Builds a provider-specific request
+/// 3. Handles streaming responses with provider-specific parsing
+/// 4. Returns the final response with usage information
 pub async fn process_request(
     request: OpenAIRequest,
     stream_key: String,
@@ -56,6 +74,19 @@ pub async fn process_request(
 
     let tx = get_broadcast_sender(state, &stream_key).await;
 
+    // Detect provider from endpoint for provider-specific handling
+    let model_details = state.get_model_details().await.map_err(|e| {
+        warn!(error = ?e, "Could not fetch model details from state.");
+        NodeError::Configuration("Could not retrieve model details.".to_string())
+    })?;
+    let provider = Provider::from_endpoint(&model_details.provider_endpoint);
+    info!(
+        provider = %provider.name(),
+        endpoint = %model_details.provider_endpoint,
+        stream_key = %stream_key,
+        "Detected AI provider for stream handling."
+    );
+
     let openai_request = match request_builder::build_request(
         &request,
         state,
@@ -71,8 +102,15 @@ pub async fn process_request(
         }
     };
 
-    let result =
-        stream_handler::handle_stream(&state.openai_client, openai_request, &stream_key, tx).await;
+    // Pass provider to stream handler for provider-specific SSE parsing
+    let result = stream_handler::handle_stream(
+        &state.openai_client,
+        openai_request,
+        &stream_key,
+        tx,
+        provider,
+    )
+    .await;
 
     update_final_metrics(state, request_start_time, &result, &stream_key);
 

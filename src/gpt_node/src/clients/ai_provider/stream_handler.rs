@@ -1,16 +1,24 @@
+//! SSE stream handler for AI provider responses.
+//!
+//! This module processes streaming chat completion responses from various AI providers.
+//! It handles provider-specific fields and extracts extended usage information.
+
 use crate::{
-    core::error::{NodeError, map_node_error_to_message_status},
-    clients::ai_provider::{AIResponse, resilient_types::ResilientChatCompletionStreamResponse, types::ExtendedChatCompletionRequest},
+    clients::ai_provider::{
+        resilient_types::ResilientChatCompletionStreamResponse,
+        types::ExtendedChatCompletionRequest, AIResponse,
+    },
+    core::error::{map_node_error_to_message_status, NodeError},
     core::job::types::StreamedResponse,
 };
 use async_openai::{
-    Client,
     config::OpenAIConfig,
     error::OpenAIError,
     types::chat::{
         ChatCompletionMessageToolCall, ChatCompletionMessageToolCallChunk, FinishReason,
         FunctionCall,
     },
+    Client,
 };
 use futures::{Stream, StreamExt};
 use gpt_types::domain::message::TokenUsage;
@@ -22,35 +30,54 @@ use std::{
 use tokio::sync::broadcast;
 use tracing::{debug, error, info, warn};
 
+use super::extended_usage::ExtendedTokenUsage;
+use super::provider::Provider;
+use super::usage_parser::{extract_reasoning_content, parse_extended_usage_with_reasoning};
+
 const MAX_STREAMING_RETRIES: u32 = 3;
 const STREAMING_RETRY_DELAY_MS: u64 = 1000;
 
 type ChatResponseStream =
     Pin<Box<dyn Stream<Item = Result<ResilientChatCompletionStreamResponse, OpenAIError>> + Send>>;
 
+/// Handle streaming response from AI provider.
+///
+/// # Arguments
+/// * `client` - OpenAI-compatible client
+/// * `req` - Extended chat completion request
+/// * `stream_key` - Unique identifier for this stream (for logging/broadcasting)
+/// * `tx` - Broadcast sender for streaming responses to WebSocket clients
+/// * `provider` - Detected AI provider for provider-specific parsing
 pub(super) async fn handle_stream(
     client: &Client<OpenAIConfig>,
     req: ExtendedChatCompletionRequest,
     stream_key: &str,
     tx: broadcast::Sender<StreamedResponse>,
+    provider: Provider,
 ) -> Result<AIResponse, NodeError> {
-    info!(stream_key, "Initializing provider stream.");
+    info!(
+        stream_key,
+        provider = %provider.name(),
+        "Initializing provider stream."
+    );
     let stream = initialize_stream_with_retry(client, req, stream_key).await?;
     info!(stream_key, "Stream initialized, beginning processing.");
-    process_stream(stream, stream_key.to_string(), tx).await
+    process_stream(stream, stream_key.to_string(), tx, provider).await
 }
 
 async fn process_stream(
     mut stream: ChatResponseStream,
     stream_key: String,
     tx: broadcast::Sender<StreamedResponse>,
+    provider: Provider,
 ) -> Result<AIResponse, NodeError> {
     let start_time = Instant::now();
     let mut full_response_text = String::new();
+    let mut reasoning_text = String::new(); // Accumulate reasoning content (DeepInfra/Kimi)
     let mut final_node_error: Option<NodeError> = None;
     let mut tool_calls_aggregator: BTreeMap<u32, ChatCompletionMessageToolCall> = BTreeMap::new();
     let mut final_finish_reason: Option<FinishReason> = None;
-    let mut final_usage: Option<TokenUsage> = None;
+    let mut last_response_with_usage: Option<ResilientChatCompletionStreamResponse> = None;
     let mut chunk_count = 0;
 
     while let Some(chunk_result) = stream.next().await {
@@ -58,10 +85,12 @@ async fn process_stream(
         match handle_stream_chunk(
             chunk_result,
             &mut full_response_text,
+            &mut reasoning_text,
             &mut tool_calls_aggregator,
             &tx,
             &stream_key,
-            &mut final_usage,
+            &mut last_response_with_usage,
+            provider,
         ) {
             Ok(Some(finish_reason)) => {
                 final_finish_reason = Some(finish_reason);
@@ -74,16 +103,42 @@ async fn process_stream(
         }
     }
 
+    // Parse extended usage from the last response that contained usage data
+    let final_extended_usage: Option<ExtendedTokenUsage> =
+        last_response_with_usage.as_ref().and_then(|response| {
+            parse_extended_usage_with_reasoning(response, provider, reasoning_text.len())
+        });
+
     let elapsed = start_time.elapsed();
+
+    // Log detailed metrics including provider-specific data
     info!(
         stream_key,
         duration_ms = elapsed.as_millis(),
         chunks_processed = chunk_count,
         finish_reason = ?final_finish_reason,
         has_error = final_node_error.is_some(),
-        has_usage = final_usage.is_some(),
+        has_usage = final_extended_usage.is_some(),
+        reasoning_content_len = reasoning_text.len(),
+        provider = %provider.name(),
         "Stream processing finished."
     );
+
+    // Log provider-specific extension data at debug level
+    if let Some(ref usage) = final_extended_usage {
+        debug!(
+            stream_key,
+            provider = %provider.name(),
+            prompt_tokens = usage.base.prompt_tokens,
+            completion_tokens = usage.base.completion_tokens,
+            total_tokens = usage.base.total_tokens,
+            extension = ?usage.extension,
+            "Extended usage extracted."
+        );
+    }
+
+    // Convert to base TokenUsage for backward compatibility
+    let final_usage: Option<TokenUsage> = final_extended_usage.map(|eu| eu.base);
 
     let final_payload = if let Some(ref err) = final_node_error {
         StreamedResponse {
@@ -138,7 +193,7 @@ async fn process_stream(
     }
 }
 
-// Helper to map string finish reasons from resilient response to strict enum
+/// Map string finish reasons from resilient response to strict enum.
 fn parse_finish_reason(reason: Option<String>) -> Option<FinishReason> {
     match reason?.as_str() {
         "stop" => Some(FinishReason::Stop),
@@ -150,26 +205,36 @@ fn parse_finish_reason(reason: Option<String>) -> Option<FinishReason> {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn handle_stream_chunk(
     chunk_result: Result<ResilientChatCompletionStreamResponse, OpenAIError>,
     full_response_text: &mut String,
+    reasoning_text: &mut String,
     tool_calls_aggregator: &mut BTreeMap<u32, ChatCompletionMessageToolCall>,
     tx: &broadcast::Sender<StreamedResponse>,
     stream_key: &str,
-    final_usage: &mut Option<TokenUsage>,
+    last_response_with_usage: &mut Option<ResilientChatCompletionStreamResponse>,
+    provider: Provider,
 ) -> Result<Option<FinishReason>, NodeError> {
     match chunk_result {
         Ok(response) => {
-            if let Some(usage) = response.usage {
-                *final_usage = Some(TokenUsage::from(usage));
+            // Store response if it contains usage data (for final extraction)
+            if response.usage.is_some() {
+                *last_response_with_usage = Some(response.clone());
+            }
+
+            // Extract reasoning content (DeepInfra/Kimi thinking models)
+            if let Some(reasoning) = extract_reasoning_content(&response) {
+                reasoning_text.push_str(&reasoning);
                 debug!(
                     stream_key,
-                    ?final_usage,
-                    "Captured token usage from stream."
+                    provider = %provider.name(),
+                    reasoning_chunk_len = reasoning.len(),
+                    "Captured reasoning content chunk."
                 );
             }
 
-            // service_tier is ignored here (tolerated via ResilientChatCompletionStreamResponse)
+            // service_tier is captured but ignored (tolerated via ResilientChatCompletionStreamResponse)
 
             let mut finish_reason = None;
             for choice in response.choices {
@@ -198,6 +263,7 @@ fn handle_stream_chunk(
         Err(e) => {
             error!(
                 stream_key,
+                provider = %provider.name(),
                 error = %e,
                 "Error receiving chunk from provider stream."
             );

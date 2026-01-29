@@ -1,9 +1,10 @@
 use super::context::prepare_context;
+use super::provider::Provider;
 use crate::{
-    core::error::NodeError,
-    core::state::AppState,
     clients::ai_provider::types::ExtendedChatCompletionRequest,
+    core::error::NodeError,
     core::job::types::{OpenAIRequest, TokenizedMessage},
+    core::state::AppState,
 };
 use async_openai::{
     error::OpenAIError,
@@ -43,6 +44,21 @@ pub(super) async fn build_request(
     })?;
     let model_supports_images = model_details.max_image_attachments > 0;
     let is_reasoning_model = model_details.is_reasoning;
+
+    // Detect provider from endpoint URL
+    let provider = Provider::from_endpoint(&model_details.provider_endpoint);
+    info!(
+        provider = %provider.name(),
+        endpoint = %model_details.provider_endpoint,
+        "Detected AI provider."
+    );
+
+    // Get provider-specific configuration
+    let provider_config = provider.get_request_config(
+        is_reasoning_model,
+        request.reasoning_effort.as_deref(),
+        request.max_completion_tokens,
+    );
 
     if !model_supports_images {
         info!(
@@ -139,14 +155,19 @@ pub(super) async fn build_request(
     req_builder
         .model(state.provider_model.clone())
         .messages(all_messages)
-        .stream(true)
-        .stream_options(ChatCompletionStreamOptions {
+        .stream(true);
+
+    // Provider-specific stream options (Mistral doesn't support stream_options)
+    if provider_config.supports_stream_options {
+        req_builder.stream_options(ChatCompletionStreamOptions {
             include_usage: Some(true),
             include_obfuscation: None,
         });
+    }
 
-    // Handle reasoning effort
-    if is_reasoning_model {
+    // Handle reasoning effort - only OpenAI uses the builder method directly
+    // Mistral and Cerebras use extra_fields (handled by provider_config)
+    if is_reasoning_model && provider == Provider::OpenAI {
         if let Some(effort_str) = &request.reasoning_effort {
             let effort_lower: String = effort_str.to_lowercase();
             let effort = match effort_lower.as_str() {
@@ -157,12 +178,17 @@ pub(super) async fn build_request(
             };
             req_builder.reasoning_effort(effort);
         }
-        // Reasoning models use max_completion_tokens (which is also the new standard for all)
+    }
+
+    // Set token limit - only if NOT using max_tokens via extra_fields (Mistral)
+    // For Mistral, max_tokens is added to extra_fields by provider_config
+    if !provider_config.use_max_tokens {
         req_builder.max_completion_tokens(request.max_completion_tokens);
-    } else {
-        // For non-reasoning models, we also use max_completion_tokens as max_tokens is deprecated
-        req_builder.max_completion_tokens(request.max_completion_tokens);
-        req_builder.temperature(request.temperature); // Reasoning models typically don't support temperature
+    }
+
+    // Temperature for non-reasoning models (reasoning models typically don't support temperature)
+    if !is_reasoning_model {
+        req_builder.temperature(request.temperature);
     }
 
     if !openai_tools.is_empty() {
@@ -185,10 +211,13 @@ pub(super) async fn build_request(
 
     let standard_req = req_builder.build()?;
 
-    let mut extra_fields = HashMap::new();
+    // Start with provider-specific fields (e.g., max_tokens for Mistral, reasoning_format for Cerebras)
+    let mut extra_fields = provider_config.extra_fields;
+
+    // Merge job-specific extra_body_json (user/model overrides take precedence)
     if let Some(json_str) = job_extra_json {
         match serde_json::from_str::<HashMap<String, Value>>(&json_str) {
-            Ok(map) => extra_fields = map,
+            Ok(map) => extra_fields.extend(map),
             Err(e) => {
                 warn!("Failed to parse extra_body_json from job: {}", e);
             }
@@ -197,12 +226,14 @@ pub(super) async fn build_request(
 
     info!(
         model = %standard_req.model,
+        provider = %provider.name(),
         messages_count = standard_req.messages.len(),
         tools_count = standard_req.tools.as_ref().map_or(0, |t| t.len()),
         max_completion_tokens = ?standard_req.max_completion_tokens,
         temperature = ?standard_req.temperature,
         stream_options = ?standard_req.stream_options,
         extra_fields_count = extra_fields.len(),
+        extra_fields_keys = ?extra_fields.keys().collect::<Vec<_>>(),
         "Final provider request constructed."
     );
     debug!(

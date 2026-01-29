@@ -17,12 +17,12 @@ build_os: check_node_binary ## Build OS image
 	@echo "Building OS image..."
 	@mkdir -p $(VM_ARTIFACTS_DIR)
 	@mkdir -p $(VM_CACHE_DIR)
-	@DOCKER_BUILDKIT=1 docker build --no-cache -t $(OS_NAME) -f $(OS_DIR)/Dockerfile .
+	@DOCKER_BUILDKIT=1 docker build -t $(OS_NAME) -f $(OS_DIR)/Dockerfile .
 	@docker run $(DOCKER_RUN_ARGS) $(OS_NAME)
 
 build_ovmf: ## Build OVMF firmware
 	@echo "Building OVMF firmware..."
 	@mkdir -p $(VM_ARTIFACTS_DIR)
 	@mkdir -p $(VM_CACHE_DIR)
-	@DOCKER_BUILDKIT=1 docker build --no-cache -t $(OVMF_NAME) $(OVMF_DIR)
+	@DOCKER_BUILDKIT=1 docker build -t $(OVMF_NAME) $(OVMF_DIR)
 	@docker run $(DOCKER_RUN_ARGS) $(OVMF_NAME)
