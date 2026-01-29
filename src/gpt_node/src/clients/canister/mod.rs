@@ -4,4 +4,4 @@ pub mod message;
 pub mod requirements;
 pub mod whoami;
 
-pub use client::{build_ic_agent, instrumented_canister_call};
+pub use client::instrumented_canister_call;

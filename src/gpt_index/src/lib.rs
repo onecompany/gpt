@@ -14,7 +14,6 @@ use crate::storage::{
     USERS,
 };
 pub use handlers::*;
-use handlers::user_canister::{create_empty_canister_for_pool, return_canister_to_pool};
 
 /// Sets up a periodic timer to perform:
 /// 1. Garbage collection on expired pending registrations
