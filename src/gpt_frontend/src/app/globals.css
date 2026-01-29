@@ -252,14 +252,21 @@ html {
 
 /* Streamdown data-attribute styling */
 [data-streamdown="code-block"] {
-  border-radius: 0.5rem;
-  border: 1px solid var(--color-zinc-700);
+  border: 0px;
+  background: var(--color-zinc-800);
   overflow: hidden;
 }
 
+[data-streamdown="horizontal-rule"] {
+  border-color: var(--color-zinc-600);
+}
+
 [data-streamdown="code-block-body"] {
-  max-height: 500px;
+  max-height: 32rem;
   overflow-y: auto;
+  border-width: 0px;
+  padding-top: 0;
+  padding-bottom: 0rem;
 }
 
 [data-streamdown="table-wrapper"] {

@@ -152,7 +152,7 @@ export const mapRetryAiMessageRequest = (
 export const mapContinueFromToolResponseRequest = (
   chatId: string,
   assistantMessageId: string,
-  responses: { tool_call_id: string; content: string }[],
+  responses: { tool_call_id: string; content: Uint8Array }[],
   modelId: string,
   nodeId: number,
   temperature: number,
@@ -164,10 +164,15 @@ export const mapContinueFromToolResponseRequest = (
   customPrompt: string | undefined,
   reasoningEffort: string | undefined,
 ): ContinueFromToolResponseRequest => {
+  const mappedResponses = responses.map((res) => ({
+    tool_call_id: res.tool_call_id,
+    content: toBlob(res.content),
+  }));
+
   return {
     chat_id: toBigInt(chatId),
     assistant_message_id: toBigInt(assistantMessageId),
-    responses: responses,
+    responses: mappedResponses,
     model_id: modelId,
     node_id: toBigInt(nodeId),
     temperature,

@@ -383,7 +383,7 @@ export interface ToolCall {
   'type' : string,
 }
 export interface ToolResponseMessage {
-  'content' : string,
+  'content' : Uint8Array,
   'tool_call_id' : string,
 }
 export interface ToolResult {

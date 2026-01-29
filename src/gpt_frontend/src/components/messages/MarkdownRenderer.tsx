@@ -9,7 +9,7 @@ import { cjk } from "@streamdown/cjk";
 
 // Configure plugins OUTSIDE component for stable references (per Streamdown docs)
 const codePlugin = createCodePlugin({
-  themes: ["github-light", "github-dark"],
+  themes: ["one-dark-pro", "one-dark-pro"],
 });
 
 const mathPlugin = createMathPlugin({
@@ -73,14 +73,14 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
         parseIncompleteMarkdown={true}
         plugins={plugins}
         className="text-zinc-300 text-base leading-7"
-        shikiTheme={["github-light", "github-dark"]}
+        shikiTheme={["one-dark-pro", "one-dark-pro"]}
         caret="block"
         remend={{
           linkMode: "text-only",
         }}
         controls={{
-          code: true,
-          table: true,
+          code: false,
+          table: false,
           mermaid: {
             panZoom: true,
             fullscreen: true,

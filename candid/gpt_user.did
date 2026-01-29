@@ -336,7 +336,7 @@ type TokenUsage = record {
 };
 type Tool = record { name : text; parameters : text; description : text };
 type ToolCall = record { id : text; function : FunctionCall; "type" : text };
-type ToolResponseMessage = record { content : text; tool_call_id : text };
+type ToolResponseMessage = record { content : blob; tool_call_id : text };
 type ToolResult = record {
   content : text;
   error : opt text;

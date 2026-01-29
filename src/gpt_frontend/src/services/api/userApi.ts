@@ -392,7 +392,7 @@ export class UserApi {
     params: {
       chatId: string;
       assistantMessageId: string;
-      responses: { tool_call_id: string; content: string }[];
+      responses: { tool_call_id: string; content: Uint8Array }[];
       modelId: string;
       nodeId: number;
       temperature: number;

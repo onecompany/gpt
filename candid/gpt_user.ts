@@ -183,7 +183,7 @@ export interface GetFileContentRequest {
     file_id: bigint;
 }
 export interface ToolResponseMessage {
-    content: string;
+    content: Uint8Array;
     tool_call_id: string;
 }
 export type Result_7 = {

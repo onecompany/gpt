@@ -200,7 +200,7 @@ export const idlFactory = ({ IDL }) => {
   });
   const Result_3 = IDL.Variant({ 'Ok' : IDL.Null, 'Err' : CanisterError });
   const ToolResponseMessage = IDL.Record({
-    'content' : IDL.Text,
+    'content' : IDL.Vec(IDL.Nat8),
     'tool_call_id' : IDL.Text,
   });
   const ContinueFromToolResponseRequest = IDL.Record({

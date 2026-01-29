@@ -1,18 +1,18 @@
 use crate::{
+    api::websocket::types::ConversationRequest,
+    clients::ai_provider::{AIResponse, process_request},
     clients::canister::{
         conversation::{claim_job, complete_job},
         message::fetch_message,
     },
-    clients::ai_provider::{AIResponse, process_request},
     core::error::{ErrorSeverity, NodeError, map_node_error_to_message_status},
-    lifecycle,
-    core::state::SharedState,
-    api::websocket::types::ConversationRequest,
     core::job::{
         context::JobProcessingContext,
         encryption::{decrypt_chat_key, decrypt_content, encrypt_content},
         types::{MessageData, OpenAIRequest},
     },
+    core::state::SharedState,
+    lifecycle,
 };
 use gpt_types::{
     api::{ClaimJobResponse, JobCompletionResult},
@@ -159,7 +159,16 @@ async fn prepare_for_ai_processing(
             }
             Err(e) => {
                 error!(error = ?e, "Failed to fetch history for job. Aborting.");
-                let failure_status = map_node_error_to_message_status(&e);
+                // If the error is a decryption error, explicitly map it to configuration error
+                // so the user sees something intelligible rather than generic retry.
+                let failure_status = if e.to_string().contains("History decryption failed") {
+                    gpt_types::error::MessageErrorStatus::ConfigurationError(
+                        "Conversation history corrupted or decryption failed.".to_string(),
+                    )
+                } else {
+                    map_node_error_to_message_status(&e)
+                };
+
                 let agent_clone = agent.clone();
                 let job_id = request.job_id;
                 let user_canister_clone = user_canister;

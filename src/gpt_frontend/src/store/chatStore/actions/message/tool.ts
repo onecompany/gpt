@@ -78,85 +78,91 @@ export const createToolContinuationActions: StateCreator<
         throw new Error("Parent assistant message with tool calls not found.");
       }
 
-      const toolResults: ToolResult[] = [];
-      for (const call of assistantMessage.tool_calls) {
-        if (
-          assistantMessage.tool_results?.some(
-            (res) => res.tool_call_id === call.id,
-          )
-        ) {
-          const existingResult = assistantMessage.tool_results.find(
-            (res) => res.tool_call_id === call.id,
-          )!;
-          toolResults.push(existingResult);
-          continue;
-        }
+      // Execute all tool calls in parallel to prevent timeouts
+      const toolResults: ToolResult[] = await Promise.all(
+        assistantMessage.tool_calls.map(async (call): Promise<ToolResult> => {
+          // Idempotency: If result already exists, return it immediately
+          if (
+            assistantMessage.tool_results?.some(
+              (res) => res.tool_call_id === call.id,
+            )
+          ) {
+            return assistantMessage.tool_results.find(
+              (res) => res.tool_call_id === call.id,
+            )!;
+          }
 
-        let result: ToolResult;
-        switch (call.function.name) {
-          case "files_search": {
-            try {
-              const { query } = JSON.parse(call.function.arguments);
-              if (typeof query !== "string" || !query.trim()) {
-                throw new Error(
-                  "Invalid or empty query provided to files_search tool.",
+          try {
+            switch (call.function.name) {
+              case "files_search": {
+                const { query } = JSON.parse(call.function.arguments);
+                if (typeof query !== "string" || !query.trim()) {
+                  throw new Error("Invalid query for files_search.");
+                }
+
+                const { indexingStatus, isIndexStale, searchableChunks, files } =
+                  useFileStore.getState();
+                const { runHybridSearch } = useEmbeddingStore.getState();
+
+                const textFiles = Array.from(files.values()).filter(
+                  (f: FileItem) => isTextMimeType(f.mimeType, f.name),
                 );
-              }
 
-              const { indexingStatus, isIndexStale, searchableChunks, files } =
-                useFileStore.getState();
-              const { runHybridSearch } = useEmbeddingStore.getState();
+                if (textFiles.length === 0) {
+                  return {
+                    tool_call_id: call.id,
+                    content: "No searchable file content found.",
+                    error: undefined,
+                  };
+                }
 
-              const textFiles = Array.from(files.values()).filter(
-                (f: FileItem) => isTextMimeType(f.mimeType, f.name),
-              );
+                const isIndexIncomplete =
+                  textFiles.length > searchableChunks.size;
+                const needsIndexing =
+                  isIndexStale ||
+                  isIndexIncomplete ||
+                  indexingStatus === "idle";
 
-              if (textFiles.length === 0) {
-                result = {
-                  tool_call_id: call.id,
-                  content:
-                    "No searchable file content found. The user has not uploaded any text-based files.",
-                  error: undefined,
-                };
-                break;
-              }
+                if (needsIndexing || indexingStatus === "in-progress") {
+                  set((state) => {
+                    // Dedup: only add if not already queued
+                    const exists = state.queuedToolCalls.some(
+                      (item) =>
+                        item.chatId === (chatId as ChatId) &&
+                        item.assistantMessageId ===
+                        (assistantMessageId as MessageId),
+                    );
+                    if (exists) return {};
+                    return {
+                      queuedToolCalls: [
+                        ...state.queuedToolCalls,
+                        {
+                          chatId: chatId as ChatId,
+                          assistantMessageId: assistantMessageId as MessageId,
+                        },
+                      ],
+                    };
+                  });
+                  return {
+                    tool_call_id: call.id,
+                    content:
+                      "The file index is being updated. I will provide an answer as soon as it's ready.",
+                    error: undefined,
+                  };
+                }
 
-              const isIndexIncomplete =
-                textFiles.length > searchableChunks.size;
-              const needsIndexing =
-                isIndexStale || isIndexIncomplete || indexingStatus === "idle";
+                const allSearchableChunks: SearchableChunk[] = Array.from(
+                  searchableChunks.values(),
+                ).flat();
 
-              if (needsIndexing || indexingStatus === "in-progress") {
-                set((state) => ({
-                  queuedToolCalls: [
-                    ...state.queuedToolCalls,
-                    {
-                      chatId: chatId as any,
-                      assistantMessageId: assistantMessageId as any,
-                    },
-                  ],
-                }));
-                result = {
-                  tool_call_id: call.id,
-                  content:
-                    "The file index is being updated. I will provide an answer as soon as it's ready.",
-                  error: undefined,
-                };
-                break;
-              }
+                if (allSearchableChunks.length === 0) {
+                  return {
+                    tool_call_id: call.id,
+                    content: "No searchable chunks found.",
+                    error: undefined,
+                  };
+                }
 
-              const allSearchableChunks: SearchableChunk[] = Array.from(
-                searchableChunks.values(),
-              ).flat();
-
-              if (allSearchableChunks.length === 0) {
-                result = {
-                  tool_call_id: call.id,
-                  content:
-                    "No searchable file content found. The user has not uploaded any text-based files or the files are empty.",
-                  error: undefined,
-                };
-              } else {
                 const searchResultsRaw = await runHybridSearch(
                   query,
                   allSearchableChunks,
@@ -189,246 +195,236 @@ export const createToolContinuationActions: StateCreator<
                 const top5Results = searchResultsWithInfo.slice(0, 5);
 
                 if (top5Results.length === 0) {
-                  result = {
+                  return {
                     tool_call_id: call.id,
-                    content:
-                      "No relevant information found for the query in the user's files.",
+                    content: "No relevant information found.",
                     error: undefined,
                   };
                 } else {
                   const formattedContent = top5Results
                     .map((res, i) => {
-                      return `Result ${i + 1}:\nSource File: "${
-                        res.fileInfo.name
-                      }"\n---\n${res.text}\n---`;
+                      return `Result ${i + 1}:\nSource File: "${res.fileInfo.name}"\n---\n${res.text}\n---`;
                     })
                     .join("\n\n");
-                  result = {
+                  return {
                     tool_call_id: call.id,
                     content: formattedContent,
                     error: undefined,
                   };
                 }
               }
-            } catch (e: unknown) {
-              const errMsg = e instanceof Error ? e.message : String(e);
-              result = {
-                tool_call_id: call.id,
-                content: JSON.stringify({
-                  error:
-                    "An internal error occurred while executing the files_search tool.",
-                  details: errMsg || "Unknown error",
-                }),
-                error: `Error executing files_search tool: ${errMsg}`,
-              };
-            }
-            break;
-          }
-          case "web_search": {
-            try {
-              const args = JSON.parse(call.function.arguments);
-              const compiledPrompt = compileWebSearchPrompt(args.query);
 
-              if (
-                typeof args.query !== "string" ||
-                !args.query.trim() ||
-                !compiledPrompt
-              ) {
-                throw new Error("Invalid or empty query for web search.");
+              case "web_search": {
+                const args = JSON.parse(call.function.arguments);
+                const compiledPrompt = compileWebSearchPrompt(args.query);
+
+                if (
+                  typeof args.query !== "string" ||
+                  !args.query.trim() ||
+                  !compiledPrompt
+                ) {
+                  throw new Error("Invalid query for web_search.");
+                }
+
+                const { models } = useModelsStore.getState();
+                const searchModel = models.find(
+                  (m) => m.modelId === SEARCH_MODEL_ID,
+                );
+
+                if (!searchModel || searchModel.nodeCount === 0) {
+                  return {
+                    tool_call_id: call.id,
+                    content: JSON.stringify({
+                      error:
+                        "Search service unavailable (model not found or offline).",
+                    }),
+                    error: "Search service unavailable.",
+                  };
+                }
+
+                const chosenNode = await pickNodeForModel(SEARCH_MODEL_ID);
+                if (!chosenNode) {
+                  throw new Error(
+                    "No active nodes available for search model.",
+                  );
+                }
+                if (!chosenNode.publicKey) {
+                  throw new Error("Node missing encryption key for search.");
+                }
+
+                const tempSalt = ChatCrypto.generateSalt();
+                const tempKey = await ChatCrypto.deriveChatKey(
+                  rootKey,
+                  tempSalt,
+                );
+                const encryptedPrompt = await ChatCrypto.encryptMessage(
+                  compiledPrompt,
+                  tempKey,
+                );
+                const encryptedKeyForNode = await ChatCrypto.wrapKeyForNode(
+                  tempKey,
+                  chosenNode.publicKey,
+                );
+
+                const createParams = {
+                  title: "Temp Search",
+                  initialMessage: new Uint8Array(encryptedPrompt),
+                  modelId: SEARCH_MODEL_ID,
+                  nodeId: Number(chosenNode.nodeId),
+                  temperature: 0.7,
+                  maxCompletionTokens: 16384,
+                  maxContext: 100000,
+                  encryptedChatKey: encryptedKeyForNode,
+                  encryptionSalt: new Uint8Array(tempSalt),
+                  attachments: [],
+                  tools: [],
+                  customPrompt: undefined,
+                  temporary: true,
+                };
+
+                // Concurrent canister calls are handled by the Agent
+                const createRes = await UserApi.createChat(
+                  authClient.getIdentity(),
+                  userCanisterId,
+                  createParams,
+                );
+
+                const tempJobId = toJobId(fromBigInt(createRes.job_id));
+                const wsUrl = `${buildWebSocketUrl(chosenNode.address)}/conversation/ws`;
+
+                const accumulatedText = await new Promise<string>(
+                  (resolve, reject) => {
+                    const ws = new WebSocket(wsUrl);
+                    let text = "";
+                    let isSettled = false;
+
+                    const cleanup = () => {
+                      isSettled = true;
+                      ws.close();
+                    };
+
+                    const timeout = setTimeout(() => {
+                      if (!isSettled) {
+                        cleanup();
+                        reject(new Error("Search request timed out."));
+                      }
+                    }, 60000);
+
+                    ws.onopen = async () => {
+                      try {
+                        const payload = JSON.stringify({
+                          jobId: tempJobId,
+                          userCanisterId,
+                        });
+                        const encrypter = new age.Encrypter();
+                        encrypter.addRecipient(chosenNode.publicKey!);
+                        const encryptedBytes = await encrypter.encrypt(payload);
+
+                        let binary = "";
+                        const len = encryptedBytes.byteLength;
+                        for (let i = 0; i < len; i++) {
+                          binary += String.fromCharCode(encryptedBytes[i]);
+                        }
+                        const base64Payload = window.btoa(binary);
+                        ws.send(base64Payload);
+                      } catch (e) {
+                        cleanup();
+                        reject(e);
+                      }
+                    };
+
+                    ws.onmessage = async (evt) => {
+                      try {
+                        const binaryString = window.atob(evt.data);
+                        const encryptedBytes = new Uint8Array(
+                          binaryString.length,
+                        );
+                        for (let i = 0; i < binaryString.length; i++) {
+                          encryptedBytes[i] = binaryString.charCodeAt(i);
+                        }
+                        const decryptedJson = await ChatCrypto.decryptMessage(
+                          encryptedBytes,
+                          tempKey,
+                        );
+                        const data: StreamedResponse =
+                          JSON.parse(decryptedJson);
+
+                        if (data.text) {
+                          text = data.text;
+                        }
+                        if (data.isComplete || data.errorStatus) {
+                          clearTimeout(timeout);
+                          cleanup();
+                          if (data.errorStatus) {
+                            reject(
+                              new Error(
+                                data.errorStatus.message ||
+                                "Unknown search error",
+                              ),
+                            );
+                          } else {
+                            resolve(text);
+                          }
+                        }
+                      } catch {
+                        // Ignore parse errors, wait for next chunk
+                      }
+                    };
+
+                    ws.onerror = () => {
+                      clearTimeout(timeout);
+                      if (!isSettled) {
+                        cleanup();
+                        reject(new Error("WebSocket connection error."));
+                      }
+                    };
+
+                    ws.onclose = () => {
+                      clearTimeout(timeout);
+                      if (!isSettled) {
+                        cleanup();
+                        reject(new Error("WebSocket closed unexpectedly."));
+                      }
+                    };
+                  },
+                );
+
+                const safeText = accumulatedText.slice(0, 100000);
+                return {
+                  tool_call_id: call.id,
+                  content: `Search Results for "${args.query}":\n\n${safeText}`,
+                  error: undefined,
+                };
               }
 
-              const { models } = useModelsStore.getState();
-              const searchModel = models.find(
-                (m) => m.modelId === SEARCH_MODEL_ID,
-              );
-
-              if (!searchModel || searchModel.nodeCount === 0) {
-                result = {
+              default:
+                return {
                   tool_call_id: call.id,
                   content: JSON.stringify({
-                    error:
-                      "Search service unavailable (model not found or offline).",
+                    error: `Tool '${call.function.name}' not recognized.`,
                   }),
-                  error: "Search service unavailable.",
+                  error: `Tool '${call.function.name}' not found.`,
                 };
-                break;
-              }
-
-              const chosenNode = await pickNodeForModel(SEARCH_MODEL_ID);
-              if (!chosenNode) {
-                throw new Error("No active nodes available for search model.");
-              }
-              if (!chosenNode.publicKey) {
-                throw new Error("Node missing encryption key for search.");
-              }
-
-              const tempSalt = ChatCrypto.generateSalt();
-              const tempKey = await ChatCrypto.deriveChatKey(rootKey, tempSalt);
-              const encryptedPrompt = await ChatCrypto.encryptMessage(
-                compiledPrompt,
-                tempKey,
-              );
-              const encryptedKeyForNode = await ChatCrypto.wrapKeyForNode(
-                tempKey,
-                chosenNode.publicKey,
-              );
-
-              const createParams = {
-                title: "Temp Search",
-                initialMessage: new Uint8Array(encryptedPrompt),
-                modelId: SEARCH_MODEL_ID,
-                nodeId: Number(chosenNode.nodeId), // Convert branded NodeId to number
-                temperature: 0.7,
-                maxCompletionTokens: 16384,
-                maxContext: 100000,
-                encryptedChatKey: encryptedKeyForNode,
-                encryptionSalt: new Uint8Array(tempSalt),
-                attachments: [],
-                tools: [],
-                customPrompt: undefined,
-                temporary: true,
-              };
-
-              const createRes = await UserApi.createChat(
-                authClient.getIdentity(),
-                userCanisterId,
-                createParams,
-              );
-
-              const tempJobId = toJobId(fromBigInt(createRes.job_id));
-              const wsUrl = `${buildWebSocketUrl(chosenNode.address)}/conversation/ws`;
-
-              const accumulatedText = await new Promise<string>(
-                async (resolve, reject) => {
-                  const ws = new WebSocket(wsUrl);
-                  let text = "";
-                  let isSettled = false;
-
-                  const cleanup = () => {
-                    isSettled = true;
-                    ws.close();
-                  };
-
-                  const timeout = setTimeout(() => {
-                    if (!isSettled) {
-                      cleanup();
-                      reject(new Error("Search request timed out."));
-                    }
-                  }, 60000);
-
-                  ws.onopen = async () => {
-                    try {
-                      const payload = JSON.stringify({
-                        jobId: tempJobId,
-                        userCanisterId,
-                      });
-                      const encrypter = new age.Encrypter();
-                      encrypter.addRecipient(chosenNode.publicKey!);
-                      const encryptedBytes = await encrypter.encrypt(payload);
-
-                      let binary = "";
-                      const len = encryptedBytes.byteLength;
-                      for (let i = 0; i < len; i++) {
-                        binary += String.fromCharCode(encryptedBytes[i]);
-                      }
-                      const base64Payload = window.btoa(binary);
-                      ws.send(base64Payload);
-                    } catch (e) {
-                      cleanup();
-                      reject(e);
-                    }
-                  };
-
-                  ws.onmessage = async (evt) => {
-                    try {
-                      const binaryString = window.atob(evt.data);
-                      const encryptedBytes = new Uint8Array(
-                        binaryString.length,
-                      );
-                      for (let i = 0; i < binaryString.length; i++) {
-                        encryptedBytes[i] = binaryString.charCodeAt(i);
-                      }
-                      const decryptedJson = await ChatCrypto.decryptMessage(
-                        encryptedBytes,
-                        tempKey,
-                      );
-                      const data: StreamedResponse = JSON.parse(decryptedJson);
-
-                      if (data.text) {
-                        text = data.text;
-                      }
-                      if (data.isComplete || data.errorStatus) {
-                        clearTimeout(timeout);
-                        cleanup();
-                        if (data.errorStatus) {
-                          reject(
-                            new Error(
-                              data.errorStatus.message ||
-                                "Unknown search error",
-                            ),
-                          );
-                        } else {
-                          resolve(text);
-                        }
-                      }
-                    } catch {
-                      // Ignore errors
-                    }
-                  };
-
-                  ws.onerror = () => {
-                    clearTimeout(timeout);
-                    if (!isSettled) {
-                      cleanup();
-                      reject(new Error("WebSocket connection error."));
-                    }
-                  };
-
-                  ws.onclose = () => {
-                    clearTimeout(timeout);
-                    if (!isSettled) {
-                      cleanup();
-                      reject(new Error("WebSocket closed unexpectedly."));
-                    }
-                  };
-                },
-              );
-
-              const safeText = accumulatedText.slice(0, 100000);
-              const content = `Search Results for "${args.query}":\n\n${safeText}`;
-
-              result = {
-                tool_call_id: call.id,
-                content,
-                error: undefined,
-              };
-            } catch (e: unknown) {
-              const errMsg = e instanceof Error ? e.message : String(e);
-              console.error("Web search tool execution failed:", e);
-              result = {
-                tool_call_id: call.id,
-                content: JSON.stringify({
-                  error: `Web search failed: ${errMsg}`,
-                }),
-                error: errMsg,
-              };
             }
-            break;
-          }
-          default: {
-            result = {
+          } catch (e: unknown) {
+            const errMsg = e instanceof Error ? e.message : String(e);
+            console.error(
+              `Tool execution failed for ${call.function.name}:`,
+              e,
+            );
+            // Return error result to let other parallel tasks succeed
+            return {
               tool_call_id: call.id,
               content: JSON.stringify({
-                error: `The tool '${call.function.name}' is not recognized.`,
+                error: `Tool failed: ${errMsg}`,
               }),
-              error: `Tool '${call.function.name}' not found.`,
+              error: errMsg,
             };
-            break;
           }
-        }
-        toolResults.push(result);
-      }
+        }),
+      );
 
+      // Store results if not already present
       if (!assistantMessage.tool_results) {
         const storeParams = {
           chatId,
@@ -446,6 +442,7 @@ export const createToolContinuationActions: StateCreator<
         );
       }
 
+      // Update local state with results
       set((state) => {
         const messagesMap = new Map(state.messages[chatId]);
         const msgToUpdate = messagesMap.get(assistantMessageId as MessageId);
@@ -462,6 +459,7 @@ export const createToolContinuationActions: StateCreator<
         return {};
       });
 
+      // Stop if queued for indexing
       if (
         get().queuedToolCalls.some(
           (c) =>
@@ -472,23 +470,34 @@ export const createToolContinuationActions: StateCreator<
         return;
       }
 
+      // Prepare continuation (AI response to tools)
       const chosenNode = await pickNodeForModel(selectedModel.modelId);
       if (!chosenNode)
         throw new Error("No suitable node found for tool continuation.");
       if (!chosenNode.publicKey)
         throw new Error("Node public key required for continuation.");
 
-      const toolResponsesForContinuation = toolResults.map((result) => ({
-        tool_call_id: result.tool_call_id,
-        content: result.content,
-      }));
-
-      const compiledPrompt = compileSystemPrompt(selectedModel);
-
       const chatKey = await ChatCrypto.deriveChatKey(
         rootKey,
         currentChat.encryptionSalt,
       );
+
+      // ENCRYPTION: Encrypt each tool result content before sending to backend
+      const toolResponsesForContinuation = await Promise.all(
+        toolResults.map(async (result) => {
+          const encryptedContent = await ChatCrypto.encryptMessage(
+            result.content,
+            chatKey,
+          );
+          return {
+            tool_call_id: result.tool_call_id,
+            content: encryptedContent, // Uint8Array
+          };
+        }),
+      );
+
+      const compiledPrompt = compileSystemPrompt(selectedModel);
+
       const encryptedChatKey = await ChatCrypto.wrapKeyForNode(
         chatKey,
         chosenNode.publicKey,
@@ -499,7 +508,7 @@ export const createToolContinuationActions: StateCreator<
         assistantMessageId,
         responses: toolResponsesForContinuation,
         modelId: selectedModel.modelId,
-        nodeId: Number(chosenNode.nodeId), // Convert branded NodeId to number for API
+        nodeId: Number(chosenNode.nodeId),
         temperature,
         maxCompletionTokens: maxOutput,
         maxContext: maxContext,

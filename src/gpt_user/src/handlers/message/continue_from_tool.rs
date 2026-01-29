@@ -83,7 +83,7 @@ pub fn continue_from_tool_response(
             chat_id: req.chat_id,
             parent_message_id: Some(0), // Will be assigned later
             role: Role::Tool,
-            content: response.content.as_bytes().to_vec(),
+            content: response.content.clone(), // Clone the Vec<u8> directly
             tool_call_id: Some(response.tool_call_id.clone()),
             tool_calls: None,
             tool_results: None,

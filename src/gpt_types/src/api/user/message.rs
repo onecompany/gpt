@@ -109,7 +109,8 @@ pub struct RetryAiMessageResponse {
 #[derive(CandidType, Deserialize, Debug, Serialize, Clone)]
 pub struct ToolResponseMessage {
     pub tool_call_id: String,
-    pub content: String,
+    #[serde(with = "serde_bytes")]
+    pub content: Vec<u8>,
 }
 
 #[derive(CandidType, Deserialize, Debug, Serialize, Clone)]
