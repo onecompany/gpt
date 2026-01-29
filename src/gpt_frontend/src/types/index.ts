@@ -11,6 +11,8 @@ export type CompressionLevel =
   | "low"
   | "lossless";
 
+export type RenderMode = "markdown" | "plain";
+
 export type FileUploadStatus =
   | "queued"
   | "embedding"

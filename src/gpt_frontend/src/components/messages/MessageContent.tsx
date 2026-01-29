@@ -159,7 +159,7 @@ export const MessageContent: React.FC<MessageContentProps> = memo(
           !isGenerationFinished ? (
             <AssistantPlaceholder />
           ) : nonReasoningContent.trim().length > 0 ? (
-            <TextRenderer content={displayedText} />
+            <TextRenderer content={displayedText} isAnimating={!isGenerationFinished} />
           ) : null}
         </div>
       );
@@ -171,7 +171,7 @@ export const MessageContent: React.FC<MessageContentProps> = memo(
 
     if (message.role === "assistant") {
       return (
-        <TextRenderer content={displayedText} />
+        <TextRenderer content={displayedText} isAnimating={!isGenerationFinished} />
       );
     }
 

@@ -15,7 +15,7 @@ const LOCK_FILE_NAME: &str = "port.lock";
 pub fn get_allocated_ports() -> Result<HashSet<u16>> {
     let mut ports = HashSet::new();
     let re_file = Regex::new(r"gpt_node_(\d+)\.service")?;
-    let re_port = Regex::new(r"--port (\d+)")?;
+    let re_port = Regex::new(r"-p (\d+)")?;
 
     if !std::path::Path::new(SYSTEMD_DIR).exists() {
         return Ok(ports);
@@ -53,7 +53,7 @@ pub fn get_assigned_port(node_id: u64) -> Result<Option<u16>> {
     }
 
     let content = fs::read_to_string(&path)?;
-    let re_port = Regex::new(r"--port (\d+)")?;
+    let re_port = Regex::new(r"-p (\d+)")?;
 
     if let Some(caps) = re_port.captures(&content) {
         let port = caps[1].parse::<u16>()?;

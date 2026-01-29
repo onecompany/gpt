@@ -193,7 +193,7 @@ fn get_default_attestation_requirements() -> AttestationRequirements {
             },
             min_guest_svn: 255,
         },
-        require_smt_disabled: true,
+        require_smt_disabled: false,
         require_tsme_disabled: true,
         require_ecc_enabled: true,
         require_rapl_disabled: false,

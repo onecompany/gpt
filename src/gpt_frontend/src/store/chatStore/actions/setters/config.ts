@@ -1,5 +1,5 @@
 import { StateCreator } from "zustand";
-import { Model, CompressionLevel, Tool } from "../../../../types";
+import { Model, CompressionLevel, RenderMode, Tool } from "../../../../types";
 import { ChatStoreState } from "../../index";
 import { availableTools, chatParameterOptions } from "@/constants/constants";
 
@@ -31,6 +31,7 @@ export interface ConfigSetterActions {
   setMaxOutput: (output: number) => void;
   setMaxContext: (context: number) => void;
   setCompressionLevel: (level: CompressionLevel) => void;
+  setRenderMode: (mode: RenderMode) => void;
   setSelectedModel: (model: Model | null) => void;
   setDefaultModel: (model: Model | null) => void;
   toggleTool: (tool: Tool) => void;
@@ -48,6 +49,7 @@ export const createConfigSetterActions: StateCreator<
   setMaxOutput: (output) => set({ maxOutput: output }),
   setMaxContext: (context) => set({ maxContext: context }),
   setCompressionLevel: (level) => set({ compressionLevel: level }),
+  setRenderMode: (mode) => set({ renderMode: mode }),
 
   setSelectedModel: (model) =>
     set(() => ({

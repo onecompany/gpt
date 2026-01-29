@@ -7,6 +7,20 @@ use sev::firmware::{
 };
 use tracing::{error, info, warn};
 
+/// Detects the AMD SEV-SNP generation from TCB values.
+/// - Turin: Has FMC field present
+/// - Genoa: No FMC, bootloader >= 8 (typically 10)
+/// - Milan: No FMC, bootloader < 8 (typically 4)
+fn detect_generation(tcb: &TcbVersion) -> &'static str {
+    if tcb.fmc.is_some() {
+        "Turin"
+    } else if tcb.bootloader >= 8 {
+        "Genoa"
+    } else {
+        "Milan"
+    }
+}
+
 pub(super) fn perform_report_content_checks(
     report: &AttestationReport,
     requirements: &AttestationRequirements,
@@ -121,10 +135,11 @@ fn check_versions(
         ));
     }
 
-    let gen_policy = if report.reported_tcb.fmc.is_some() {
-        &requirements.turin_policy
-    } else {
-        &requirements.milan_policy // Default/Fallback logic
+    let generation = detect_generation(&report.reported_tcb);
+    let gen_policy = match generation {
+        "Turin" => &requirements.turin_policy,
+        "Genoa" => &requirements.genoa_policy,
+        _ => &requirements.milan_policy,
     };
 
     if report.guest_svn < gen_policy.min_guest_svn {
@@ -151,10 +166,11 @@ fn check_tcb(report: &AttestationReport, requirements: &AttestationRequirements)
     let mut errors = Vec::new();
     let tcb: TcbVersion = report.reported_tcb;
 
-    let gen_policy = if tcb.fmc.is_some() {
-        &requirements.turin_policy
-    } else {
-        &requirements.milan_policy
+    let generation = detect_generation(&tcb);
+    let gen_policy = match generation {
+        "Turin" => &requirements.turin_policy,
+        "Genoa" => &requirements.genoa_policy,
+        _ => &requirements.milan_policy,
     };
 
     let min_tcb = &gen_policy.min_tcb;

@@ -4,6 +4,7 @@ import {
   Model,
   Attachment,
   CompressionLevel,
+  RenderMode,
   Tool,
   PublicNodeInfo,
 } from "../../types";
@@ -38,6 +39,7 @@ export interface ChatState {
   maxOutput: number;
   maxContext: number;
   compressionLevel: CompressionLevel;
+  renderMode: RenderMode;
   selectedModel: Model | null;
   selectedTools: Tool[];
   reasoningEffort: string;
@@ -86,6 +88,7 @@ export const initialState: ChatState = {
   maxOutput: 2048,
   maxContext: 8192,
   compressionLevel: "extreme",
+  renderMode: "markdown",
   selectedModel: null,
   selectedTools: availableTools,
   reasoningEffort: "medium",

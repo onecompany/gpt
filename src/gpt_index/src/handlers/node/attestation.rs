@@ -61,11 +61,19 @@ pub(super) fn verify_attestation_evidence(
     Ok(generation.to_string())
 }
 
+/// Detects the AMD SEV-SNP generation from attestation report TCB values.
+/// - Turin: Has FMC field present
+/// - Genoa: No FMC, bootloader >= 8 (typically 10)
+/// - Milan: No FMC, bootloader < 8 (typically 4)
 fn detect_generation_from_report(report: &AttestationReport) -> &'static str {
-    if report.reported_tcb.fmc.is_some() {
-        return "Turin";
+    let tcb = &report.reported_tcb;
+    if tcb.fmc.is_some() {
+        "Turin"
+    } else if tcb.bootloader >= 8 {
+        "Genoa"
+    } else {
+        "Milan"
     }
-    "Milan"
 }
 
 fn verify_report_signature_manually(

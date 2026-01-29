@@ -101,6 +101,8 @@ const nextConfig = async (): Promise<NextConfig> => {
     images: {
       unoptimized: true,
     },
+    // Transpile ESM-only packages for static export
+    transpilePackages: ["shiki", "streamdown", "mermaid"],
     experimental: {
       optimizePackageImports: ["@phosphor-icons/react"],
     },
@@ -108,6 +110,15 @@ const nextConfig = async (): Promise<NextConfig> => {
       fetches: {
         fullUrl: true,
       },
+    },
+    // Handle mermaid/shiki node-specific deps in client bundle
+    webpack: (config) => {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+        path: false,
+      };
+      return config;
     },
     env: {
       NEXT_PUBLIC_INTERNET_IDENTITY_URL:

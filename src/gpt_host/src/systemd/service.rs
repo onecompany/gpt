@@ -181,7 +181,7 @@ pub fn remove_service(node_id: u64) -> Result<()> {
 /// Lists all configured GPT Protocol nodes by scanning systemd unit files.
 pub fn list_services() -> Result<()> {
     let re_file = Regex::new(r"gpt_node_(\d+)\.service")?;
-    let re_port = Regex::new(r"--port (\d+)")?;
+    let re_port = Regex::new(r"-p (\d+)")?;
 
     println!(
         "{:<10} {:<10} {:<15} {:<30}",
