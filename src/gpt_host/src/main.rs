@@ -121,7 +121,7 @@ enum Command {
     Router {
         #[arg(long, default_value = "9999")]
         port: u16,
-        #[arg(long, default_value = "https://daemon-dev.gptprotocol.dev")]
+        #[arg(long, default_value = "https://ic0.app")]
         ic_url: String,
         #[arg(long, default_value = "u6s2n-gx777-77774-qaaba-cai")]
         canister_id: String,

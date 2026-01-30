@@ -1,6 +1,6 @@
 SHELL = /bin/bash
 .DEFAULT_GOAL = help
-DAEMON_DOMAIN ?= daemon-dev.gptprotocol.dev
+DAEMON_DOMAIN ?= ic0.app
 DFX_DOMAINS = localhost $(DAEMON_DOMAIN)
 ARTIFACTS_DIR = artifacts
 BINDINGS_DIR = candid

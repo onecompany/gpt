@@ -47,7 +47,7 @@ pub struct Args {
     pub network_type: String,
 
     /// The URL of the IC replica to use (required for "local" network).
-    #[arg(long, default_value = "https://daemon-dev.gptprotocol.dev")]
+    #[arg(long, default_value = "https://ic0.app")]
     pub replica_url: String,
 
     /// Optional: Rate limit for requests per minute to the AI provider.
