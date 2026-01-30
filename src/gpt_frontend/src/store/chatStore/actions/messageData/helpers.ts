@@ -25,20 +25,34 @@ export const mergeFetchedWithLocalMap = (
 
     if (fetchedVersion) {
       // Prioritize local text for streaming content if message is not complete
+      // Preserve local content when:
+      // 1. Local has content AND fetched doesn't, OR
+      // 2. Local is complete (stream finished) AND has content but fetched doesn't
+      // This handles the race condition where fetchMessages runs before complete_job updates canister
       const finalContent =
-        !fetchedVersion.content && lMsg.content && !lMsg.isComplete
+        lMsg.content && (!fetchedVersion.content || (lMsg.isComplete && !fetchedVersion.isComplete))
           ? lMsg.content
-          : fetchedVersion.content;
+          : fetchedVersion.content || lMsg.content;
 
       const finalErrorStatus = lMsg.errorStatus ?? fetchedVersion.errorStatus;
+
+      // Preserve usage from local if present (stream provides usage with final message)
+      // Canister may not have usage yet if complete_job hasn't finished
+      const finalUsage = lMsg.usage ?? fetchedVersion.usage;
+
+      // Preserve modelId from local if present (stream may have it before canister)
+      const finalModelId = lMsg.modelId || fetchedVersion.modelId;
 
       const mergedMessage: Message = {
         ...fetchedVersion,
         ...lMsg,
-        ...fetchedVersion, // Re-apply fetched props to ensure source of truth
+        ...fetchedVersion, // Re-apply fetched props to ensure source of truth for IDs
         content: finalContent,
         errorStatus: finalErrorStatus,
-        isComplete: fetchedVersion.isComplete || !!finalErrorStatus,
+        usage: finalUsage,
+        modelId: finalModelId,
+        // Preserve local isComplete if set (stream finished before canister updated)
+        isComplete: fetchedVersion.isComplete || lMsg.isComplete || !!finalErrorStatus,
       };
 
       mergedMap.set(lMsgId, mergedMessage);

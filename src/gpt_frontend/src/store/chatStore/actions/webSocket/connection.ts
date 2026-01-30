@@ -134,7 +134,7 @@ export const createWebSocketActions: StateCreator<
 
       get().setActiveChatJob(chatId as ChatId, jobId, false);
 
-      const { onMessage, cancel } = createMessageHandler(
+      const { onMessage, cancel, hasReceivedFinalMessage } = createMessageHandler(
         set,
         get,
         chatId as ChatId,
@@ -217,39 +217,59 @@ export const createWebSocketActions: StateCreator<
           return { webSockets: newWebSockets };
         });
 
-        const { message: finalLocalMessage } = findTargetMessageDetails(
-          get,
-          chatId as ChatId,
-          jobId,
-        );
-        const alreadyHandledFinalStateViaStream =
-          finalLocalMessage &&
-          (finalLocalMessage.isComplete || !!finalLocalMessage.errorStatus);
-
-        const isStillGenerating =
-          get().isGenerating[chatId] ||
-          get().isAITyping[chatId] ||
-          get().isWaiting[chatId];
-
-        if (!alreadyHandledFinalStateViaStream && isStillGenerating) {
-          console.warn(
+        // If we received the final message, stream completed successfully - just clean up
+        if (hasReceivedFinalMessage()) {
+          console.log(
             logPrefix,
-            "Connection closed unexpectedly for active job",
+            "Stream completed successfully for job",
             jobId,
+            "(final message received).",
           );
-          handleError(
-            `WebSocket closed unexpectedly (code: ${
-              evt.code
-            }, reason: '${evt.reason || "unknown"}').`,
-          );
-        } else if (isStillGenerating) {
           set((state) => ({
             isGenerating: { ...state.isGenerating, [chatId]: false },
             isAITyping: { ...state.isAITyping, [chatId]: false },
             isWaiting: { ...state.isWaiting, [chatId]: false },
           }));
           get().clearActiveChatJob(chatId as ChatId);
+          return;
         }
+
+        // Defer error check to allow any pending async message processing to complete
+        queueMicrotask(() => {
+          const { message: finalLocalMessage } = findTargetMessageDetails(
+            get,
+            chatId as ChatId,
+            jobId,
+          );
+          const alreadyHandledFinalStateViaStream =
+            finalLocalMessage &&
+            (finalLocalMessage.isComplete || !!finalLocalMessage.errorStatus);
+
+          const isStillGenerating =
+            get().isGenerating[chatId] ||
+            get().isAITyping[chatId] ||
+            get().isWaiting[chatId];
+
+          if (!alreadyHandledFinalStateViaStream && isStillGenerating) {
+            console.warn(
+              logPrefix,
+              "Connection closed unexpectedly for active job",
+              jobId,
+            );
+            handleError(
+              `WebSocket closed unexpectedly (code: ${
+                evt.code
+              }, reason: '${evt.reason || "unknown"}').`,
+            );
+          } else if (isStillGenerating) {
+            set((state) => ({
+              isGenerating: { ...state.isGenerating, [chatId]: false },
+              isAITyping: { ...state.isAITyping, [chatId]: false },
+              isWaiting: { ...state.isWaiting, [chatId]: false },
+            }));
+            get().clearActiveChatJob(chatId as ChatId);
+          }
+        });
       };
     } catch (err: unknown) {
       const errMsg = err instanceof Error ? err.message : "Unknown";

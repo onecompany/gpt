@@ -26,6 +26,8 @@ fn init(parent_canister_id: Principal) {
     storage::set_parent_canister(parent_canister_id);
     // Set up periodic background tasks (e.g., syncing with index).
     timers::manager::setup_periodic_tasks_timer();
+    // Trigger immediate sync so models/nodes are available right away.
+    timers::manager::trigger_immediate_sync();
     ic_cdk::println!("gpt_user init completed.");
 }
 

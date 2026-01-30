@@ -53,22 +53,31 @@ export function useWebSocketReconnection() {
       activeJobInfoForCurrentChat &&
       !activeJobInfoForCurrentChat.erroredViaStream
     ) {
-      // Logic Check: If the message in store already has an errorStatus, we should NOT reconnect
+      // Logic Check: If the message in store already has an errorStatus or content, we should NOT reconnect
       // This prevents loops where the stream errored, closed, but activeChatJobs wasn't fully cleared yet
       // or we are in a race between error handling and this effect.
+      // Also prevents reconnection to already-completed jobs that have streamed content.
       const msgs = messages[currentChatId];
       if (msgs instanceof Map) {
         for (const msg of msgs.values()) {
-          if (
-            msg.jobId === activeJobInfoForCurrentChat.jobId &&
-            msg.errorStatus
-          ) {
-            console.log(
-              "[WS Reconnect]: Skipping reconnect for job",
-              activeJobInfoForCurrentChat.jobId,
-              "because message already has error status.",
-            );
-            return;
+          if (msg.jobId === activeJobInfoForCurrentChat.jobId) {
+            if (msg.errorStatus) {
+              console.log(
+                "[WS Reconnect]: Skipping reconnect for job",
+                activeJobInfoForCurrentChat.jobId,
+                "because message already has error status.",
+              );
+              return;
+            }
+            // Skip reconnection if message already has content (stream likely completed)
+            if (msg.content && msg.content.trim().length > 0) {
+              console.log(
+                "[WS Reconnect]: Skipping reconnect for job",
+                activeJobInfoForCurrentChat.jobId,
+                "because message already has content.",
+              );
+              return;
+            }
           }
         }
       }

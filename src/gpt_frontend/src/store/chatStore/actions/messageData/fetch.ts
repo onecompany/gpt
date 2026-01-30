@@ -120,16 +120,32 @@ export const createMessageDataActions: StateCreator<
         chatId,
       );
 
+      // Capture local state BEFORE merge to detect if job was already completed locally
+      // This handles the race condition where stream completed but complete_job hasn't updated canister yet
+      const localMapBeforeMerge = get().messages[chatId];
+      const backendActiveJobId = chat.activeJobId;
+      let wasLocallyComplete = false;
+      if (localMapBeforeMerge && backendActiveJobId !== null) {
+        for (const msg of localMapBeforeMerge.values()) {
+          if (
+            msg.role === "assistant" &&
+            msg.jobId === backendActiveJobId &&
+            msg.isComplete
+          ) {
+            wasLocallyComplete = true;
+            break;
+          }
+        }
+      }
+
       const mergedMap = mergeFetchedWithLocalMap(
         decryptedMessages,
-        get().messages[chatId],
+        localMapBeforeMerge,
       );
       const finalMessagesMap = mergeJobDetailsIntoMap(mergedMap, jobs);
-
-      const backendActiveJobId = chat.activeJobId;
       let isJobActuallyRunning = false;
 
-      if (backendActiveJobId !== null) {
+      if (backendActiveJobId !== null && !wasLocallyComplete) {
         const activeJobDetails = jobs.find(
           (job) => job.job_id === backendActiveJobId,
         );
@@ -158,7 +174,13 @@ export const createMessageDataActions: StateCreator<
         },
       }));
 
-      if (isJobActuallyRunning && backendActiveJobId !== null) {
+      // Only re-set active job if:
+      // 1. Job appears to be running based on merged state, AND
+      // 2. Backend has an active job ID, AND
+      // 3. The job was NOT already complete in local state before merge
+      // The wasLocallyComplete check prevents re-setting a job that completed locally
+      // but the canister hasn't been updated yet (complete_job race condition)
+      if (isJobActuallyRunning && backendActiveJobId !== null && !wasLocallyComplete) {
         const currentActiveJobForChat: ActiveJobInfo | undefined =
           get().activeChatJobs[chatId];
         const wasPreviouslyErroredViaStream =

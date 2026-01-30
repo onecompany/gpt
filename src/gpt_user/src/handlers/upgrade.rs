@@ -14,5 +14,7 @@ fn pre_upgrade_handler() {
 fn post_upgrade_handler() {
     ic_cdk::println!("gpt_user post_upgrade: Reinitializing timers.");
     crate::timers::manager::setup_periodic_tasks_timer();
+    // Trigger immediate sync to refresh models/nodes after upgrade.
+    crate::timers::manager::trigger_immediate_sync();
     ic_cdk::println!("gpt_user post_upgrade completed.");
 }

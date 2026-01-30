@@ -16,6 +16,7 @@ export const createMessageHandler = (
   let latestMessageData: StreamedResponse | null = null;
   let isUpdateScheduled = false;
   let animationFrameId: number | null = null;
+  let receivedFinalMessage = false;
 
   const processBatchedUpdate = () => {
     isUpdateScheduled = false;
@@ -220,6 +221,11 @@ export const createMessageHandler = (
       ) {
         throw new Error("Invalid message format");
       }
+
+      // Track receipt of final message to prevent race conditions with onclose
+      if (parsedData.isComplete) {
+        receivedFinalMessage = true;
+      }
     } catch (err: unknown) {
       const errMsg = err instanceof Error ? err.message : String(err);
       handleWebSocketError(
@@ -253,5 +259,7 @@ export const createMessageHandler = (
     if (latestMessageData) processBatchedUpdate();
   };
 
-  return { onMessage, cancel };
+  const hasReceivedFinalMessage = () => receivedFinalMessage;
+
+  return { onMessage, cancel, hasReceivedFinalMessage };
 };

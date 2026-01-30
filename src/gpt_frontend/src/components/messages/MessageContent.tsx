@@ -26,7 +26,7 @@ export const MessageContent: React.FC<MessageContentProps> = memo(
 
     // Derived state for reasoning content and timing
     const reasoningData = useMemo(() => {
-      if (message.role !== "assistant" || message.errorStatus) {
+      if (message.role !== "assistant") {
         return {
           reasoningContent: null,
           nonReasoningContent: message.content,
@@ -76,7 +76,6 @@ export const MessageContent: React.FC<MessageContentProps> = memo(
     } = reasoningData;
 
     const displayedText = useMemo(() => {
-      if (message.errorStatus) return "";
       const contentToUse =
         message.role === "user" ? message.content : nonReasoningContent;
       const truncateLimit = 600;
@@ -90,17 +89,22 @@ export const MessageContent: React.FC<MessageContentProps> = memo(
       ? formatErrorStatus(message.errorStatus)
       : null;
 
-    if (errorMessage) {
-      return (
-        <div className="flex items-start text-sm pl-3 pr-3.5 py-2 sm:py-2.5 rounded-2xl bg-red-900/20 text-red-300">
-          <WarningCircle
-            size={18}
-            weight="regular"
-            className="mr-2 shrink-0 mt-0.5"
-          />
-          <span>{errorMessage}</span>
-        </div>
-      );
+    // Error banner component - shown above content when both exist
+    const errorBanner = errorMessage ? (
+      <div className="flex items-start text-sm pl-3 pr-3.5 py-2 sm:py-2.5 rounded-2xl bg-red-900/20 text-red-300 mb-2">
+        <WarningCircle
+          size={18}
+          weight="regular"
+          className="mr-2 shrink-0 mt-0.5"
+        />
+        <span>{errorMessage}</span>
+      </div>
+    ) : null;
+
+    // If there's an error but no content, only show the error
+    const hasContent = message.content && message.content.trim().length > 0;
+    if (errorMessage && !hasContent) {
+      return errorBanner;
     }
 
     // Determine if we should show "Thinking..." placeholder
@@ -117,6 +121,7 @@ export const MessageContent: React.FC<MessageContentProps> = memo(
     if (hasToolCalls) {
       return (
         <div>
+          {errorBanner}
           <ToolCallDisplay
             toolCalls={message.tool_calls!}
             onRunTools={
@@ -143,6 +148,7 @@ export const MessageContent: React.FC<MessageContentProps> = memo(
     if (reasoningContent) {
       return (
         <div>
+          {errorBanner}
           <div className="mb-2">
             <ContentAccordion
               type="reasoning"
@@ -166,17 +172,28 @@ export const MessageContent: React.FC<MessageContentProps> = memo(
     }
 
     if (showThinking) {
-      return <AssistantPlaceholder />;
+      return (
+        <div>
+          {errorBanner}
+          <AssistantPlaceholder />
+        </div>
+      );
     }
 
     if (message.role === "assistant") {
       return (
-        <TextRenderer content={displayedText} isAnimating={!isGenerationFinished} />
+        <div>
+          {errorBanner}
+          <TextRenderer content={displayedText} isAnimating={!isGenerationFinished} />
+        </div>
       );
     }
 
     return (
-      <div className="whitespace-pre-wrap wrap-break-word">{displayedText}</div>
+      <div>
+        {errorBanner}
+        <div className="whitespace-pre-wrap wrap-break-word">{displayedText}</div>
+      </div>
     );
   },
 );

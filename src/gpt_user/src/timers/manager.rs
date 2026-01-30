@@ -1,8 +1,25 @@
 use super::{cleanup, sync};
-use ic_cdk_timers::set_timer_interval;
+use ic_cdk_timers::{set_timer, set_timer_interval};
 use std::time::Duration;
 
 const PERIODIC_INTERVAL_SECONDS: u64 = 120;
+
+/// Triggers an immediate sync of models and nodes.
+/// Uses set_timer with Duration::ZERO to run after init completes
+/// (inter-canister calls can't be made during init itself).
+pub fn trigger_immediate_sync() {
+    ic_cdk::println!("Scheduling immediate sync of models and nodes...");
+    set_timer(Duration::ZERO, || {
+        ic_cdk::futures::spawn(perform_initial_sync());
+    });
+}
+
+async fn perform_initial_sync() {
+    ic_cdk::println!("Starting Initial Canister Sync...");
+    sync::sync_nodes_with_index().await;
+    sync::sync_models_with_index().await;
+    ic_cdk::println!("Finished Initial Canister Sync");
+}
 
 pub fn setup_periodic_tasks_timer() {
     ic_cdk::println!(
