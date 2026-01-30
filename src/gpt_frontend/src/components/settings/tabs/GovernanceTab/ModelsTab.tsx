@@ -73,6 +73,9 @@ const ModelsTab: React.FC<ModelsTabProps> = ({ onEdit }) => {
       release_date: model.releaseDate ? [model.releaseDate] : [],
       status: newStatus,
       extra_body_json: model.extra_body_json,
+      is_reasoning: model.isReasoning,
+      is_embedding: model.isEmbedding,
+      is_featured: model.isFeatured,
     };
 
     try {

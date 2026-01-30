@@ -283,12 +283,8 @@ export class IndexApi {
     model: BackendModelPreset,
   ): Promise<void> {
     const actor = await getIndexActor(identity);
-    const modelData = {
-      ...model,
-      status: { Active: null },
-    };
     const [payload] = normalizePayload(idlFactory, "update_model", [
-      { model: modelData },
+      { model },
     ]);
     const result = await actor.update_model(payload);
     unwrapResult(result, formatCanisterError);
