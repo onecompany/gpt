@@ -60,6 +60,42 @@ export function toBlob(data: Uint8Array | number[]): Uint8Array {
 }
 
 /**
+ * Serializes a float32 array (embeddings) to bytes for storage.
+ * Each float32 value is converted to 4 bytes.
+ */
+export function serializeEmbedding(embedding: number[]): Uint8Array {
+  if (!embedding || embedding.length === 0) return new Uint8Array(0);
+  const float32Array = new Float32Array(embedding);
+  return new Uint8Array(float32Array.buffer);
+}
+
+/**
+ * Deserializes bytes back to a float32 array (embeddings).
+ * Expects the byte length to be a multiple of 4.
+ */
+export function deserializeEmbedding(bytes: Uint8Array | number[]): number[] {
+  const uint8 =
+    bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes as number[]);
+  if (uint8.length === 0) return [];
+  // Ensure proper alignment for Float32Array (must be multiple of 4 bytes)
+  if (uint8.length % 4 !== 0) {
+    console.warn(
+      "[deserializeEmbedding] Invalid byte length:",
+      uint8.length,
+      "- expected multiple of 4",
+    );
+    return [];
+  }
+  // Create a properly aligned Float32Array view
+  const float32Array = new Float32Array(
+    uint8.buffer,
+    uint8.byteOffset,
+    uint8.length / 4,
+  );
+  return Array.from(float32Array);
+}
+
+/**
  * Extracts the key from a Candid Variant object.
  */
 export function getVariantKey<T extends object>(variant: T): keyof T {

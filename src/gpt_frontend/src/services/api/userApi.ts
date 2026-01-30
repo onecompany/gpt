@@ -9,6 +9,7 @@ import {
   mapBackendLocalNodeToFrontend,
   mapBackendJobToFrontend,
 } from "@/utils/mappers";
+import { mapUploadFileRequest } from "@/utils/requestMappers";
 import { fromBigInt, fromOpt } from "@/utils/candidUtils";
 
 import type {
@@ -583,14 +584,15 @@ export class UserApi {
     },
   ): Promise<string> {
     const actor = await this.getActor(identity, canisterId);
-    const mappedParams = {
-      name: params.name,
-      mime_type: params.mimeType,
-      parent_folder_id: params.parentFolderId,
-      content: params.content,
-      chunks: params.chunks,
-    };
-    const [req] = normalizePayload(idlFactory, "upload_file", [mappedParams]);
+    // Use mapUploadFileRequest to properly serialize embeddings as Float32 bytes
+    const mappedRequest = mapUploadFileRequest(
+      params.name,
+      params.mimeType,
+      params.parentFolderId,
+      params.content,
+      params.chunks,
+    );
+    const [req] = normalizePayload(idlFactory, "upload_file", [mappedRequest]);
     const result = await actor.upload_file(req);
     const response = unwrapResult<UploadFileResponse, unknown>(
       result,

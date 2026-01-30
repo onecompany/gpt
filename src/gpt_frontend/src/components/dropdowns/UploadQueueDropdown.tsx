@@ -146,7 +146,7 @@ export const UploadQueueDropdown: React.FC = () => {
             </span>
           </DropdownTrigger>
 
-          <DropdownContent align="end" width="w-64" className="p-1 overflow-hidden">
+          <DropdownContent align="end" width="w-64" className="p-1 !ring-0 overflow-hidden">
             <div className="flex items-center justify-between px-2 py-1 mb-1">
               <span className="text-xs font-medium text-zinc-400 uppercase tracking-wide">
                 Uploads

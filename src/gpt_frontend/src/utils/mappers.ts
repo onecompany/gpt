@@ -43,6 +43,7 @@ import {
   fromOpt,
   fromTimestamp,
   getVariantKey,
+  deserializeEmbedding,
 } from "./candidUtils";
 import { Principal } from "@icp-sdk/core/principal";
 import {
@@ -275,10 +276,7 @@ const mapBackendTextChunk = (backendChunk: BackendTextChunk): TextChunk => ({
   chunk_index: Number(backendChunk.chunk_index),
   start_char: Number(backendChunk.start_char),
   end_char: Number(backendChunk.end_char),
-  embedding:
-    backendChunk.embedding instanceof Uint8Array
-      ? Array.from(backendChunk.embedding)
-      : Array.from(new Uint8Array(backendChunk.embedding)),
+  embedding: deserializeEmbedding(backendChunk.embedding), // Properly deserialize float32 array from bytes
 });
 
 export const mapBackendFile = (backendFile: BackendFileInfo): FileItem => ({

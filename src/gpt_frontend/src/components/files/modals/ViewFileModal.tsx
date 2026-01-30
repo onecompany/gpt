@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Dialog, DialogPanel } from "@headlessui/react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { FileItem, SearchResult } from "@/types";
@@ -9,27 +9,18 @@ import {
   FileIcon,
 } from "@phosphor-icons/react";
 import { useFileStore } from "@/store/fileStore";
-import { useEmbeddingStore } from "@/store/embeddingStore";
+import { useEmbeddingStore, type SearchMode } from "@/store/embeddingStore";
 import { FilePreviewHeader } from "./FilePreviewHeader";
 import { SearchResultsList } from "./SearchResultsList";
 
-const useDebounce = (value: string, delay: number): string => {
-  const [debouncedValue, setDebouncedValue] = useState(value);
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedValue(value);
-    }, delay);
-    return () => clearTimeout(handler);
-  }, [value, delay]);
-  return debouncedValue;
-};
+const SEARCH_DEBOUNCE_MS = 400;
 
 export const ViewFileModal: React.FC<{
   file: FileItem | null;
   onClose: () => void;
 }> = ({ file, onClose }) => {
   const { getFileContent, buildSearchIndexForFile } = useFileStore();
-  const { runHybridSearch } = useEmbeddingStore();
+  const { runSearch, isEmbeddingAvailable } = useEmbeddingStore();
   const searchableChunks = useFileStore((state) =>
     file ? state.searchableChunks.get(file.id) : null,
   );
@@ -42,7 +33,11 @@ export const ViewFileModal: React.FC<{
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
-  const debouncedSearchQuery = useDebounce(searchQuery, 300);
+  const [searchMode, setSearchMode] = useState<SearchMode>("text");
+
+  // Debounced search with ref to track latest values
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const latestSearchRef = useRef({ query: "", mode: searchMode });
 
   useEffect(() => {
     let objectUrl: string | null = null;
@@ -95,29 +90,58 @@ export const ViewFileModal: React.FC<{
     };
   }, [file, getFileContent, buildSearchIndexForFile]);
 
-  useEffect(() => {
-    const performSearch = async () => {
-      if (!debouncedSearchQuery.trim() || !searchableChunks) {
-        setSearchResults([]);
-        return;
-      }
+  // Check embedding availability for current chunks
+  const embeddingAvailable = searchableChunks
+    ? isEmbeddingAvailable(searchableChunks)
+    : false;
 
-      setIsSearching(true);
-      try {
-        const results = await runHybridSearch(
-          debouncedSearchQuery,
-          searchableChunks,
-        );
-        setSearchResults(results);
-      } catch (e: unknown) {
-        console.error("Search failed:", e);
-        setError("Search failed. Please try again.");
-      } finally {
-        setIsSearching(false);
+  // Debounced search effect
+  const performSearch = useCallback(async () => {
+    const { query, mode } = latestSearchRef.current;
+
+    if (!query.trim() || !searchableChunks) {
+      setSearchResults([]);
+      return;
+    }
+
+    setIsSearching(true);
+    try {
+      const results = await runSearch(query, searchableChunks, mode);
+      setSearchResults(results);
+    } catch (e: unknown) {
+      console.error("Search failed:", e);
+      setError("Search failed. Please try again.");
+    } finally {
+      setIsSearching(false);
+    }
+  }, [searchableChunks, runSearch]);
+
+  useEffect(() => {
+    // Update ref with latest values
+    latestSearchRef.current = { query: searchQuery, mode: searchMode };
+
+    // Clear previous timeout
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
+    // Clear results immediately if query is empty
+    if (!searchQuery.trim()) {
+      setSearchResults([]);
+      return;
+    }
+
+    // Debounce the search
+    searchTimeoutRef.current = setTimeout(() => {
+      void performSearch();
+    }, SEARCH_DEBOUNCE_MS);
+
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
       }
     };
-    performSearch();
-  }, [debouncedSearchQuery, searchableChunks, runHybridSearch]);
+  }, [searchQuery, searchMode, performSearch]);
 
   const handleDownload = async () => {
     if (!file) return;
@@ -266,7 +290,10 @@ export const ViewFileModal: React.FC<{
                 isSearchable={isSearchable}
                 searchQuery={searchQuery}
                 isSearching={isSearching}
+                searchMode={searchMode}
+                isEmbeddingAvailable={embeddingAvailable}
                 onSearchChange={setSearchQuery}
+                onSearchModeChange={setSearchMode}
                 onDownload={handleDownload}
                 onClose={onClose}
               />

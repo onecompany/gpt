@@ -4,33 +4,92 @@ import { convertPdfToImages } from "@/utils/pdfUtils";
 import { useChatStore } from "@/store/chatStore";
 import { getUniqueFileName } from "@/utils/fileUtils";
 import type { FolderId } from "@/types/brands";
+import { EmbeddingService } from "./embeddingService";
 
-// Default chunk size for text splitting (in characters)
-const CHUNK_SIZE = 1000;
-const CHUNK_OVERLAP = 200;
+// Chunk size optimized for Qwen3 Embedding model (32k token context ~ 32k chars for safety)
+// Using slightly smaller size to account for tokenization differences
+const CHUNK_SIZE = 8000; // 8k chars per chunk for better granularity
+const CHUNK_OVERLAP = 500; // Overlap for context continuity
+
+// Sentence-ending patterns for intelligent splitting
+const SENTENCE_ENDINGS = /[.!?]\s+/g;
+const PARAGRAPH_BREAK = /\n\n+/g;
 
 /**
- * Creates placeholder chunks from text content.
- * Chunks have empty embeddings that can be filled in later.
+ * Finds the best split point near target position (sentence or paragraph boundary).
  */
-function createPlaceholderChunks(
+function findBestSplitPoint(
   text: string,
-): Omit<TextChunk, "text" | "sentences">[] {
+  targetPos: number,
+  searchRange: number = 500,
+): number {
+  if (targetPos >= text.length) return text.length;
+
+  const searchStart = Math.max(0, targetPos - searchRange);
+  const searchEnd = Math.min(text.length, targetPos + searchRange);
+  const searchText = text.substring(searchStart, searchEnd);
+
+  // Look for paragraph breaks first (highest priority)
+  let bestPos = targetPos;
+  const paragraphMatches = [...searchText.matchAll(PARAGRAPH_BREAK)];
+  for (const match of paragraphMatches) {
+    const absPos = searchStart + (match.index ?? 0) + match[0].length;
+    if (
+      Math.abs(absPos - targetPos) < Math.abs(bestPos - targetPos) &&
+      absPos <= targetPos + searchRange / 2
+    ) {
+      bestPos = absPos;
+    }
+  }
+
+  // If no paragraph break found nearby, look for sentence endings
+  if (bestPos === targetPos) {
+    const sentenceMatches = [...searchText.matchAll(SENTENCE_ENDINGS)];
+    for (const match of sentenceMatches) {
+      const absPos = searchStart + (match.index ?? 0) + match[0].length;
+      if (
+        Math.abs(absPos - targetPos) < Math.abs(bestPos - targetPos) &&
+        absPos <= targetPos + searchRange / 2
+      ) {
+        bestPos = absPos;
+      }
+    }
+  }
+
+  return Math.min(bestPos, text.length);
+}
+
+/**
+ * Creates chunks from text content with intelligent boundary detection.
+ * Embeddings will be generated separately via EmbeddingService.
+ */
+function createChunks(text: string): Omit<TextChunk, "text" | "sentences">[] {
   const chunks: Omit<TextChunk, "text" | "sentences">[] = [];
   let start = 0;
   let chunkIndex = 0;
 
   while (start < text.length) {
-    const end = Math.min(start + CHUNK_SIZE, text.length);
+    // Find target end position
+    const targetEnd = start + CHUNK_SIZE;
+
+    // Find best split point (sentence/paragraph boundary)
+    const end = findBestSplitPoint(text, targetEnd);
+
     chunks.push({
       chunk_index: chunkIndex,
       start_char: start,
       end_char: end,
-      embedding: [], // Placeholder - empty embedding
+      embedding: [], // Will be filled by EmbeddingService
     });
+
     chunkIndex++;
-    start = end - CHUNK_OVERLAP;
-    if (start >= text.length - CHUNK_OVERLAP) break;
+
+    // Calculate next start with overlap, but don't go backwards
+    const nextStart = end - CHUNK_OVERLAP;
+    start = Math.max(end, nextStart);
+
+    // Prevent infinite loop
+    if (start >= text.length || end >= text.length) break;
   }
 
   // Handle edge case of very short text
@@ -44,6 +103,65 @@ function createPlaceholderChunks(
   }
 
   return chunks;
+}
+
+/**
+ * Generates embeddings for all chunks using the embedding model.
+ * Returns chunks with embeddings filled in.
+ */
+async function generateEmbeddingsForChunks(
+  text: string,
+  chunks: Omit<TextChunk, "text" | "sentences">[],
+  onProgress?: (progress: number, chunkIndex: number, total: number) => void,
+): Promise<Omit<TextChunk, "text" | "sentences">[]> {
+  // Check if embedding model is available
+  const isAvailable = EmbeddingService.isEmbeddingModelAvailable();
+  if (!isAvailable) {
+    console.warn(
+      "[FileProcessing] Embedding model not available. Using empty embeddings.",
+    );
+    return chunks;
+  }
+
+  const chunksWithEmbeddings: Omit<TextChunk, "text" | "sentences">[] = [];
+
+  // Process chunks in batches to avoid overwhelming the backend
+  const BATCH_SIZE = 5;
+  for (let i = 0; i < chunks.length; i += BATCH_SIZE) {
+    const batch = chunks.slice(i, i + BATCH_SIZE);
+
+    const batchPromises = batch.map(async (chunk, batchIdx) => {
+      const chunkText = text.substring(chunk.start_char, chunk.end_char);
+
+      try {
+        const embedding = await EmbeddingService.generateEmbedding(chunkText);
+        return {
+          ...chunk,
+          embedding,
+        };
+      } catch (error) {
+        console.error(
+          `[FileProcessing] Failed to generate embedding for chunk ${chunk.chunk_index}:`,
+          error,
+        );
+        // Return chunk with empty embedding on failure
+        return chunk;
+      } finally {
+        if (onProgress) {
+          onProgress(
+            Math.round(((i + batchIdx + 1) / chunks.length) * 100),
+            i + batchIdx + 1,
+            chunks.length,
+          );
+        }
+      }
+    });
+
+    const batchResults = await Promise.all(batchPromises);
+    chunksWithEmbeddings.push(...batchResults);
+  }
+
+  return chunksWithEmbeddings;
 }
 
 // Helper to retry async operations (e.g., OCR)
@@ -204,13 +322,27 @@ export const FileProcessingService = {
           type: "text/markdown",
         });
 
-        // Create placeholder chunks (embeddings will be generated later if needed)
+        // Create chunks and generate embeddings
         updateJob({
           status: "embedding",
           subStatus: "Creating text chunks...",
-          progress: 95,
+          progress: 90,
         });
-        const finalChunks = createPlaceholderChunks(allMarkdown);
+        const initialChunks = createChunks(allMarkdown);
+
+        updateJob({
+          subStatus: `Generating embeddings for ${initialChunks.length} chunks...`,
+        });
+        const finalChunks = await generateEmbeddingsForChunks(
+          allMarkdown,
+          initialChunks,
+          (progress, current, total) => {
+            updateJob({
+              progress: 90 + (progress * 5) / 100, // 90-95%
+              subStatus: `Embedding chunk ${current}/${total}...`,
+            });
+          },
+        );
 
         updateJob({
           status: "uploading",
@@ -225,14 +357,29 @@ export const FileProcessingService = {
         isTextMimeType(file.type, fileName)
       ) {
         if (!chunks) {
-          // Create placeholder chunks (embeddings will be generated later if needed)
+          // Create chunks and generate embeddings
           updateJob({
             status: "embedding",
             subStatus: "Creating text chunks...",
-            progress: 50,
+            progress: 30,
           });
           const fileContent = await file.text();
-          const finalChunks = createPlaceholderChunks(fileContent);
+          const initialChunks = createChunks(fileContent);
+
+          updateJob({
+            subStatus: `Generating embeddings for ${initialChunks.length} chunks...`,
+            progress: 40,
+          });
+          const finalChunks = await generateEmbeddingsForChunks(
+            fileContent,
+            initialChunks,
+            (progress, current, total) => {
+              updateJob({
+                progress: 40 + (progress * 45) / 100, // 40-85%
+                subStatus: `Embedding chunk ${current}/${total}...`,
+              });
+            },
+          );
 
           updateJob({
             status: "uploading",

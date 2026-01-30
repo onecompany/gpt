@@ -68,7 +68,7 @@ export const DropdownContent = React.forwardRef<
             "absolute mt-2 z-50",
             width,
             alignmentClass,
-            "bg-zinc-825 ring-1 ring-zinc-700 rounded-xl p-1 shadow-lg  overflow-y-auto",
+            "bg-zinc-825 ring-0 rounded-xl p-1 shadow-sm overflow-y-auto",
             className,
           )}
           {...props}

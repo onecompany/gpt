@@ -11,7 +11,7 @@ import {
   UploadFileRequest,
   TextChunk,
 } from "@candid/declarations/gpt_user.did";
-import { toOpt, toBigInt, toBlob } from "./candidUtils";
+import { toOpt, toBigInt, toBlob, serializeEmbedding } from "./candidUtils";
 
 // Request mappers convert Frontend primitives (strings, numbers, simple arrays)
 // to Backend primitives (BigInts, Optionals, Variants, Uint8Arrays)
@@ -219,7 +219,7 @@ export const mapUploadFileRequest = (
     chunk_index: c.chunk_index,
     start_char: c.start_char,
     end_char: c.end_char,
-    embedding: toBlob(c.embedding), // Convert number[] to Uint8Array
+    embedding: serializeEmbedding(c.embedding), // Properly serialize float32 array to bytes
   }));
 
   return {
