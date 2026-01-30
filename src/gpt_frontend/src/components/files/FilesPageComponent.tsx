@@ -50,7 +50,7 @@ export const FilesPageComponent: React.FC = () => {
     indexingProgress,
     indexingError,
   } = useFileStore();
-  const { runHybridSearch } = useEmbeddingStore();
+  const { runSearch } = useEmbeddingStore();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
@@ -122,9 +122,10 @@ export const FilesPageComponent: React.FC = () => {
           return;
         }
 
-        const results = await runHybridSearch(
+        const results = await runSearch(
           debouncedSearchQuery,
           allSearchableChunks,
+          "text",
         );
 
         const chunkToFileMap = new Map<string, { name: string; id: FileId }>();
@@ -176,10 +177,11 @@ export const FilesPageComponent: React.FC = () => {
     viewMode,
     indexingStatus,
     buildGlobalSearchIndex,
-    runHybridSearch,
+    runSearch,
     searchableChunks,
     allFiles,
   ]);
+
 
   const { displayedFolders, displayedFiles } = useMemo(() => {
     if (currentFolderId === null)

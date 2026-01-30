@@ -207,7 +207,7 @@ make build_host
 The protocol moves vector search to the client edge and secure enclave to prevent server-side data leaks.
 
 1. **Ingestion**: Files are uploaded via the Frontend.
-2. **Local Embedding**: The browser uses WebGPU/WASM (`transformers.js`) to generate embeddings locally using `mxbai-embed-xsmall-v1`.
+2. **Embedding**: The chunks are created and their embeddings are generated with the `gpt_node`.
 3. **Storage**: Embeddings are stored in the user's private `gpt_user` canister.
 4. **Retrieval**: During a chat, the frontend performs a Hybrid Search (Vector + Keyword) to find relevant chunks.
 5. **Inference**: Only the specific relevant text chunks are encrypted and sent to the `gpt_node` enclave for the LLM to process. The full document never leaves the user's control.

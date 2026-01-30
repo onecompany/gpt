@@ -33,6 +33,8 @@ export const mapCreateChatRequest = (
   customPrompt: string | undefined,
   temporary: boolean,
 ): CreateChatRequest => {
+  // NOTE: For `opt vec` types, pass raw arrays - normalizePayload handles optional wrapping.
+  // Type assertions needed because Candid types expect `[] | [T[]]` but adapter converts at runtime.
   return {
     title,
     initial_message: toBlob(initialMessage),
@@ -43,8 +45,10 @@ export const mapCreateChatRequest = (
     max_context: maxContext,
     encrypted_chat_key: toOpt(encryptedChatKey),
     encryption_salt: toBlob(encryptionSalt),
-    attachments: toOpt(attachments as ImageAttachment[]),
-    tools: toOpt(tools.length > 0 ? (tools as Tool[]) : undefined),
+    attachments: (attachments as ImageAttachment[]) as [] | [ImageAttachment[]],
+    tools: (tools.length > 0 ? (tools as Tool[]) : undefined) as
+      | []
+      | [Tool[]],
     custom_prompt: toOpt(customPrompt),
     temporary,
   };
@@ -68,6 +72,7 @@ export const mapAddMessageRequest = (
   reasoningEffort: string | undefined,
   parentMessageId?: string,
 ): AddMessageRequest => {
+  // NOTE: For `opt vec` types, pass raw arrays - normalizePayload handles optional wrapping.
   return {
     chat_id: toBigInt(chatId),
     parent_message_id: parentMessageId ? [toBigInt(parentMessageId)] : [],
@@ -79,8 +84,10 @@ export const mapAddMessageRequest = (
     max_completion_tokens: maxCompletionTokens,
     max_context: maxContext,
     encrypted_chat_key: toOpt(encryptedChatKey),
-    attachments: toOpt(attachments as ImageAttachment[]),
-    tools: toOpt(tools.length > 0 ? (tools as Tool[]) : undefined),
+    attachments: (attachments as ImageAttachment[]) as [] | [ImageAttachment[]],
+    tools: (tools.length > 0 ? (tools as Tool[]) : undefined) as
+      | []
+      | [Tool[]],
     custom_prompt: toOpt(customPrompt),
     reasoning_effort: toOpt(reasoningEffort),
   };
@@ -103,6 +110,7 @@ export const mapEditUserMessageRequest = (
   customPrompt: string | undefined,
   reasoningEffort: string | undefined,
 ): EditUserMessageRequest => {
+  // NOTE: For `opt vec` types, pass raw arrays - normalizePayload handles optional wrapping.
   return {
     chat_id: toBigInt(chatId),
     old_user_message_id: toBigInt(oldUserMessageId),
@@ -113,8 +121,10 @@ export const mapEditUserMessageRequest = (
     max_completion_tokens: maxCompletionTokens,
     max_context: maxContext,
     encrypted_chat_key: toOpt(encryptedChatKey),
-    attachments: toOpt(attachments as ImageAttachment[]),
-    tools: toOpt(tools.length > 0 ? (tools as Tool[]) : undefined),
+    attachments: (attachments as ImageAttachment[]) as [] | [ImageAttachment[]],
+    tools: (tools.length > 0 ? (tools as Tool[]) : undefined) as
+      | []
+      | [Tool[]],
     custom_prompt: toOpt(customPrompt),
     reasoning_effort: toOpt(reasoningEffort),
   };
@@ -134,6 +144,7 @@ export const mapRetryAiMessageRequest = (
   customPrompt: string | undefined,
   reasoningEffort: string | undefined,
 ): RetryAiMessageRequest => {
+  // NOTE: For `opt vec` types, pass raw arrays - normalizePayload handles optional wrapping.
   return {
     chat_id: toBigInt(chatId),
     user_message_id: toBigInt(userMessageId),
@@ -143,7 +154,9 @@ export const mapRetryAiMessageRequest = (
     max_completion_tokens: maxCompletionTokens,
     max_context: maxContext,
     encrypted_chat_key: toOpt(encryptedChatKey),
-    tools: toOpt(tools.length > 0 ? (tools as Tool[]) : undefined),
+    tools: (tools.length > 0 ? (tools as Tool[]) : undefined) as
+      | []
+      | [Tool[]],
     custom_prompt: toOpt(customPrompt),
     reasoning_effort: toOpt(reasoningEffort),
   };
@@ -169,6 +182,7 @@ export const mapContinueFromToolResponseRequest = (
     content: toBlob(res.content),
   }));
 
+  // NOTE: For `opt vec` types, pass raw arrays - normalizePayload handles optional wrapping.
   return {
     chat_id: toBigInt(chatId),
     assistant_message_id: toBigInt(assistantMessageId),
@@ -179,7 +193,9 @@ export const mapContinueFromToolResponseRequest = (
     max_completion_tokens: maxCompletionTokens,
     max_context: maxContext,
     encrypted_chat_key: toOpt(encryptedChatKey),
-    tools: toOpt(tools.length > 0 ? (tools as Tool[]) : undefined),
+    tools: (tools.length > 0 ? (tools as Tool[]) : undefined) as
+      | []
+      | [Tool[]],
     custom_prompt: toOpt(customPrompt),
     reasoning_effort: toOpt(reasoningEffort),
   };
@@ -215,18 +231,35 @@ export const mapUploadFileRequest = (
     embedding: number[];
   }[],
 ): UploadFileRequest => {
-  const backendChunks: TextChunk[] | undefined = chunks?.map((c) => ({
-    chunk_index: c.chunk_index,
-    start_char: c.start_char,
-    end_char: c.end_char,
-    embedding: serializeEmbedding(c.embedding), // Properly serialize float32 array to bytes
-  }));
+  const backendChunks: TextChunk[] | undefined = chunks?.map((c) => {
+    const serialized = serializeEmbedding(c.embedding);
 
+    // Debug: Log embedding serialization on upload
+    console.log('[mapUploadFileRequest] Chunk', c.chunk_index, {
+      inputEmbeddingLength: c.embedding?.length ?? 0,
+      inputEmbeddingSample: c.embedding?.slice(0, 3) ?? 'N/A',
+      serializedLength: serialized.length,
+      serializedSample: Array.from(serialized.slice(0, 8)),
+      expectedBytesForFloat32: (c.embedding?.length ?? 0) * 4,
+    });
+
+    return {
+      chunk_index: c.chunk_index,
+      start_char: c.start_char,
+      end_char: c.end_char,
+      embedding: serialized,
+    };
+  });
+
+  console.log('[mapUploadFileRequest] Total chunks:', backendChunks?.length ?? 0);
+
+  // NOTE: For `opt vec` types, pass raw arrays - normalizePayload handles optional wrapping.
+  // Don't use toOpt for opt vec types as the adapter's visitOpt case 4 would double-wrap.
   return {
     name,
     mime_type: mimeType,
     parent_folder_id: toBigInt(parentFolderId),
     content: toBlob(content),
-    chunks: toOpt(backendChunks),
+    chunks: backendChunks as [] | [TextChunk[]],
   };
 };

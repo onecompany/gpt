@@ -272,12 +272,28 @@ export const mapBackendJobToFrontend = (backendJob: BackendJob): Job => {
 
 // --- File System Mapping ---
 
-const mapBackendTextChunk = (backendChunk: BackendTextChunk): TextChunk => ({
-  chunk_index: Number(backendChunk.chunk_index),
-  start_char: Number(backendChunk.start_char),
-  end_char: Number(backendChunk.end_char),
-  embedding: deserializeEmbedding(backendChunk.embedding), // Properly deserialize float32 array from bytes
-});
+const mapBackendTextChunk = (backendChunk: BackendTextChunk): TextChunk => {
+  const rawEmbedding = backendChunk.embedding;
+  const deserialized = deserializeEmbedding(rawEmbedding);
+
+  // Debug: Log embedding data on retrieval
+  console.log('[mapBackendTextChunk] Chunk', backendChunk.chunk_index, {
+    rawEmbeddingType: Object.prototype.toString.call(rawEmbedding),
+    rawEmbeddingLength: rawEmbedding?.length ?? 0,
+    rawEmbeddingIsUint8Array: rawEmbedding instanceof Uint8Array,
+    rawEmbeddingSample: rawEmbedding?.slice?.(0, 8) ?? 'N/A',
+    deserializedLength: deserialized.length,
+    deserializedSample: deserialized.slice(0, 3),
+    hasValidEmbedding: deserialized.length > 0 && deserialized.some(v => v !== 0),
+  });
+
+  return {
+    chunk_index: Number(backendChunk.chunk_index),
+    start_char: Number(backendChunk.start_char),
+    end_char: Number(backendChunk.end_char),
+    embedding: deserialized,
+  };
+};
 
 export const mapBackendFile = (backendFile: BackendFileInfo): FileItem => ({
   id: toFileId(fromBigInt(backendFile.id)),

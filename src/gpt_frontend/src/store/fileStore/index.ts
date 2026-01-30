@@ -12,11 +12,8 @@ import { createReadActions, ReadActions } from "./actions/read";
 import { createWriteActions, WriteActions } from "./actions/write";
 import { isTextMimeType } from "@/utils/fileUtils";
 import { FileId, FolderId } from "@/types/brands";
-import { EmbeddingService } from "@/services/embeddingService";
 
-// IC response size limit is 2MB. With 1024-dim embeddings at 4 bytes each,
-// each embedding is ~4KB. To stay safe, we limit batch embedding regeneration.
-const MAX_EMBEDDING_BATCH_SIZE = 50; // ~200KB of embeddings per batch
+// Note: Embedding generation is disabled for now - only text search is used
 
 export interface FileSystemState {
   files: Map<FileId, FileItem>;
@@ -284,184 +281,24 @@ export const useFileStore = create<FileSystemStore>()(
 
     /**
      * Regenerate embeddings for a single file.
-     * Fetches file content and generates embeddings via EmbeddingService.
+     * Note: Embedding generation is disabled for now - this is a no-op.
      */
-    regenerateEmbeddingsForFile: async (fileId: FileId): Promise<void> => {
-      const logPrefix = "[FileStore:Embedding]";
-      const file = get().files.get(fileId);
-      if (!file || !isTextMimeType(file.mimeType, file.name)) {
-        console.log(logPrefix, "Skipping non-text file", fileId);
-        return;
-      }
-
-      if (!EmbeddingService.isEmbeddingModelAvailable()) {
-        console.warn(logPrefix, "Embedding model not available");
-        return;
-      }
-
-      console.log(logPrefix, "Regenerating embeddings for file", fileId);
-
-      // Fetch file content
-      const contentResult = await get().getFileContent(fileId);
-      if (!contentResult) {
-        console.error(logPrefix, "Could not fetch content for file", fileId);
-        return;
-      }
-
-      const text = new TextDecoder().decode(contentResult.content);
-
-      // Generate embeddings for each chunk
-      const updatedChunks = [...file.chunks];
-      const BATCH_SIZE = 5;
-
-      for (let i = 0; i < updatedChunks.length; i += BATCH_SIZE) {
-        const batch = updatedChunks.slice(i, i + BATCH_SIZE);
-        const batchTexts = batch.map((chunk) =>
-          text.substring(chunk.start_char, chunk.end_char),
-        );
-
-        try {
-          const embeddings = await EmbeddingService.generateEmbeddings(
-            batchTexts,
-            BATCH_SIZE,
-          );
-
-          for (let j = 0; j < batch.length; j++) {
-            updatedChunks[i + j] = {
-              ...batch[j],
-              embedding: embeddings[j],
-            };
-          }
-        } catch (error) {
-          console.error(
-            logPrefix,
-            "Failed to generate embeddings for batch",
-            i,
-            error,
-          );
-        }
-      }
-
-      // Update file with new embeddings
-      set((state) => {
-        const newFiles = new Map(state.files);
-        newFiles.set(fileId, {
-          ...file,
-          chunks: updatedChunks,
-        });
-
-        // Update searchable chunks if they exist
-        const existingSearchableChunks = state.searchableChunks.get(fileId);
-        if (existingSearchableChunks) {
-          const newSearchableChunks = new Map(state.searchableChunks);
-          const updatedSearchable = existingSearchableChunks.map(
-            (chunk, idx) => ({
-              ...chunk,
-              embedding: updatedChunks[idx]?.embedding ?? chunk.embedding,
-            }),
-          );
-          newSearchableChunks.set(fileId, updatedSearchable);
-
-          // Remove from files needing embeddings
-          const newFilesNeedingEmbeddings = new Set(state.filesNeedingEmbeddings);
-          newFilesNeedingEmbeddings.delete(fileId);
-
-          return {
-            files: newFiles,
-            searchableChunks: newSearchableChunks,
-            filesNeedingEmbeddings: newFilesNeedingEmbeddings,
-          };
-        }
-
-        // Remove from files needing embeddings
-        const newFilesNeedingEmbeddings = new Set(state.filesNeedingEmbeddings);
-        newFilesNeedingEmbeddings.delete(fileId);
-
-        return {
-          files: newFiles,
-          filesNeedingEmbeddings: newFilesNeedingEmbeddings,
-        };
-      });
-
+    regenerateEmbeddingsForFile: async (_fileId: FileId): Promise<void> => {
+      // Embedding generation disabled for now - only text search is used
       console.log(
-        logPrefix,
-        "Successfully regenerated embeddings for file",
-        fileId,
+        "[FileStore:Embedding] Embedding regeneration disabled, skipping",
       );
     },
 
     /**
      * Regenerate embeddings for all files that are missing them.
-     * Processes in batches to handle IC 2MB response limit efficiently.
+     * Note: Embedding generation is disabled for now - this is a no-op.
      */
     regenerateMissingEmbeddings: async (): Promise<void> => {
-      const logPrefix = "[FileStore:Embedding]";
-
-      if (!EmbeddingService.isEmbeddingModelAvailable()) {
-        console.warn(
-          logPrefix,
-          "Embedding model not available, skipping regeneration",
-        );
-        return;
-      }
-
-      const { files, filesNeedingEmbeddings, regenerateEmbeddingsForFile } =
-        get();
-
-      // Also check for files that might have been added since last check
-      const allFilesNeedingEmbeddings = new Set(filesNeedingEmbeddings);
-      for (const [fileId, file] of files.entries()) {
-        if (
-          isTextMimeType(file.mimeType, file.name) &&
-          !fileHasValidEmbeddings(file)
-        ) {
-          allFilesNeedingEmbeddings.add(fileId);
-        }
-      }
-
-      if (allFilesNeedingEmbeddings.size === 0) {
-        console.log(logPrefix, "All files have valid embeddings");
-        return;
-      }
-
+      // Embedding generation disabled for now - only text search is used
       console.log(
-        logPrefix,
-        `Regenerating embeddings for ${allFilesNeedingEmbeddings.size} files`,
+        "[FileStore:Embedding] Embedding regeneration disabled, skipping",
       );
-
-      const fileIds = Array.from(allFilesNeedingEmbeddings);
-      let processed = 0;
-
-      // Process in batches to avoid overwhelming the embedding service
-      for (let i = 0; i < fileIds.length; i += MAX_EMBEDDING_BATCH_SIZE) {
-        const batch = fileIds.slice(i, i + MAX_EMBEDDING_BATCH_SIZE);
-        console.log(
-          logPrefix,
-          `Processing embedding batch ${Math.floor(i / MAX_EMBEDDING_BATCH_SIZE) + 1}`,
-        );
-
-        // Process files in the batch sequentially to avoid rate limits
-        for (const fileId of batch) {
-          try {
-            await regenerateEmbeddingsForFile(fileId);
-            processed++;
-          } catch (error) {
-            console.error(
-              logPrefix,
-              "Failed to regenerate embeddings for file",
-              fileId,
-              error,
-            );
-          }
-        }
-
-        console.log(
-          logPrefix,
-          `Completed ${processed}/${fileIds.length} files`,
-        );
-      }
-
-      console.log(logPrefix, "Embedding regeneration complete");
     },
 
     reset: () => set(initialState),

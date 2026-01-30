@@ -72,11 +72,36 @@ export function serializeEmbedding(embedding: number[]): Uint8Array {
 /**
  * Deserializes bytes back to a float32 array (embeddings).
  * Expects the byte length to be a multiple of 4.
+ * Handles various input types that Candid might return (Uint8Array, ArrayBuffer, number[]).
  */
-export function deserializeEmbedding(bytes: Uint8Array | number[]): number[] {
-  const uint8 =
-    bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes as number[]);
+export function deserializeEmbedding(
+  bytes: Uint8Array | ArrayBuffer | number[] | ArrayLike<number> | null | undefined,
+): number[] {
+  // Handle null/undefined
+  if (!bytes) {
+    console.warn("[deserializeEmbedding] Received null/undefined bytes");
+    return [];
+  }
+
+  // Convert to Uint8Array handling various input types
+  let uint8: Uint8Array;
+  if (bytes instanceof Uint8Array) {
+    uint8 = bytes;
+  } else if (bytes instanceof ArrayBuffer) {
+    uint8 = new Uint8Array(bytes);
+  } else if (Array.isArray(bytes) || (typeof bytes === "object" && "length" in bytes)) {
+    // Handle number[] or ArrayLike<number>
+    uint8 = new Uint8Array(bytes as ArrayLike<number>);
+  } else {
+    console.warn(
+      "[deserializeEmbedding] Unknown bytes type:",
+      Object.prototype.toString.call(bytes),
+    );
+    return [];
+  }
+
   if (uint8.length === 0) return [];
+
   // Ensure proper alignment for Float32Array (must be multiple of 4 bytes)
   if (uint8.length % 4 !== 0) {
     console.warn(
@@ -86,12 +111,14 @@ export function deserializeEmbedding(bytes: Uint8Array | number[]): number[] {
     );
     return [];
   }
-  // Create a properly aligned Float32Array view
-  const float32Array = new Float32Array(
-    uint8.buffer,
-    uint8.byteOffset,
-    uint8.length / 4,
-  );
+
+  // Create a copy of the buffer to ensure proper alignment
+  // (Some ArrayBuffer views might not be aligned correctly)
+  const alignedBuffer = new ArrayBuffer(uint8.length);
+  const alignedView = new Uint8Array(alignedBuffer);
+  alignedView.set(uint8);
+
+  const float32Array = new Float32Array(alignedBuffer);
   return Array.from(float32Array);
 }
 

@@ -4,10 +4,8 @@ import { convertPdfToImages } from "@/utils/pdfUtils";
 import { useChatStore } from "@/store/chatStore";
 import { getUniqueFileName } from "@/utils/fileUtils";
 import type { FolderId } from "@/types/brands";
-import { EmbeddingService } from "./embeddingService";
 
-// Chunk size optimized for Qwen3 Embedding model (32k token context ~ 32k chars for safety)
-// Using slightly smaller size to account for tokenization differences
+// Chunk size for text search (embedding generation disabled for now)
 const CHUNK_SIZE = 8000; // 8k chars per chunk for better granularity
 const CHUNK_OVERLAP = 500; // Overlap for context continuity
 
@@ -61,7 +59,7 @@ function findBestSplitPoint(
 
 /**
  * Creates chunks from text content with intelligent boundary detection.
- * Embeddings will be generated separately via EmbeddingService.
+ * Used for text search (embedding generation disabled for now).
  */
 function createChunks(text: string): Omit<TextChunk, "text" | "sentences">[] {
   const chunks: Omit<TextChunk, "text" | "sentences">[] = [];
@@ -105,64 +103,6 @@ function createChunks(text: string): Omit<TextChunk, "text" | "sentences">[] {
   return chunks;
 }
 
-/**
- * Generates embeddings for all chunks using the embedding model.
- * Returns chunks with embeddings filled in.
- */
-async function generateEmbeddingsForChunks(
-  text: string,
-  chunks: Omit<TextChunk, "text" | "sentences">[],
-  onProgress?: (progress: number, chunkIndex: number, total: number) => void,
-): Promise<Omit<TextChunk, "text" | "sentences">[]> {
-  // Check if embedding model is available
-  const isAvailable = EmbeddingService.isEmbeddingModelAvailable();
-  if (!isAvailable) {
-    console.warn(
-      "[FileProcessing] Embedding model not available. Using empty embeddings.",
-    );
-    return chunks;
-  }
-
-  const chunksWithEmbeddings: Omit<TextChunk, "text" | "sentences">[] = [];
-
-  // Process chunks in batches to avoid overwhelming the backend
-  const BATCH_SIZE = 5;
-  for (let i = 0; i < chunks.length; i += BATCH_SIZE) {
-    const batch = chunks.slice(i, i + BATCH_SIZE);
-
-    const batchPromises = batch.map(async (chunk, batchIdx) => {
-      const chunkText = text.substring(chunk.start_char, chunk.end_char);
-
-      try {
-        const embedding = await EmbeddingService.generateEmbedding(chunkText);
-        return {
-          ...chunk,
-          embedding,
-        };
-      } catch (error) {
-        console.error(
-          `[FileProcessing] Failed to generate embedding for chunk ${chunk.chunk_index}:`,
-          error,
-        );
-        // Return chunk with empty embedding on failure
-        return chunk;
-      } finally {
-        if (onProgress) {
-          onProgress(
-            Math.round(((i + batchIdx + 1) / chunks.length) * 100),
-            i + batchIdx + 1,
-            chunks.length,
-          );
-        }
-      }
-    });
-
-    const batchResults = await Promise.all(batchPromises);
-    chunksWithEmbeddings.push(...batchResults);
-  }
-
-  return chunksWithEmbeddings;
-}
 
 // Helper to retry async operations (e.g., OCR)
 const retryAsync = async <T>(
@@ -322,31 +262,21 @@ export const FileProcessingService = {
           type: "text/markdown",
         });
 
-        // Create chunks and generate embeddings
+        // Create chunks for text search (embedding generation disabled)
         updateJob({
-          status: "embedding",
+          status: "chunking",
           subStatus: "Creating text chunks...",
           progress: 90,
         });
-        const initialChunks = createChunks(allMarkdown);
-
-        updateJob({
-          subStatus: `Generating embeddings for ${initialChunks.length} chunks...`,
-        });
-        const finalChunks = await generateEmbeddingsForChunks(
-          allMarkdown,
-          initialChunks,
-          (progress, current, total) => {
-            updateJob({
-              progress: 90 + (progress * 5) / 100, // 90-95%
-              subStatus: `Embedding chunk ${current}/${total}...`,
-            });
-          },
+        const finalChunks = createChunks(allMarkdown);
+        console.log(
+          `[FileProcessing] Created ${finalChunks.length} chunks for text search`,
         );
 
         updateJob({
           status: "uploading",
           subStatus: "Uploading processed file...",
+          progress: 95,
         });
         await uploadFilesAction(
           [{ file: markdownFile, chunks: finalChunks }],
@@ -357,28 +287,16 @@ export const FileProcessingService = {
         isTextMimeType(file.type, fileName)
       ) {
         if (!chunks) {
-          // Create chunks and generate embeddings
+          // Create chunks for text search (embedding generation disabled)
           updateJob({
-            status: "embedding",
+            status: "chunking",
             subStatus: "Creating text chunks...",
             progress: 30,
           });
           const fileContent = await file.text();
-          const initialChunks = createChunks(fileContent);
-
-          updateJob({
-            subStatus: `Generating embeddings for ${initialChunks.length} chunks...`,
-            progress: 40,
-          });
-          const finalChunks = await generateEmbeddingsForChunks(
-            fileContent,
-            initialChunks,
-            (progress, current, total) => {
-              updateJob({
-                progress: 40 + (progress * 45) / 100, // 40-85%
-                subStatus: `Embedding chunk ${current}/${total}...`,
-              });
-            },
+          const finalChunks = createChunks(fileContent);
+          console.log(
+            `[FileProcessing] Created ${finalChunks.length} chunks for text search`,
           );
 
           updateJob({
