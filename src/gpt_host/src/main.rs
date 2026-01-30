@@ -123,7 +123,7 @@ enum Command {
         port: u16,
         #[arg(long, default_value = "https://ic0.app")]
         ic_url: String,
-        #[arg(long, default_value = "u6s2n-gx777-77774-qaaba-cai")]
+        #[arg(long, default_value = "luvwx-tiaaa-aaaap-qa67q-cai")]
         canister_id: String,
     },
 

@@ -14,7 +14,7 @@ export PATH="/sbin:/bin:/usr/sbin:/usr/bin:/usr/local/bin"
 # Hardcoded configuration for this architecture.
 GPT_NODE_BIN="/usr/local/bin/gpt_node"
 NETWORK_TYPE="local"
-CANISTER_PRINCIPAL="u6s2n-gx777-77774-qaaba-cai"
+CANISTER_PRINCIPAL="luvwx-tiaaa-aaaap-qa67q-cai"
 RPM_LIMIT="1000"
 CONCURRENCY_LIMIT="200"
 
