@@ -13,5 +13,9 @@
   },
   "devDependencies": {
     "@icp-sdk/bindgen": "0.2.1"
+  },
+  "engines": {
+    "node": "24.13.0",
+    "npm": "11.6.2"
   }
 }

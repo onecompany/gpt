@@ -2,6 +2,18 @@
   "name": "gpt-frontend",
   "version": "0.1.0",
   "private": true,
+  "description": "Next.js client for GPT Protocol.",
+  "homepage": "https://gpt.one",
+  "bugs": {
+    "url": "https://github.com/onecompany/gpt/issues"
+  },
+  "license": "MIT",
+  "author": "GPT Protocol Dev Team",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/onecompany/gpt.git",
+    "directory": "src/gpt_frontend"
+  },
   "scripts": {
     "analyze": "next experimental-analyze",
     "build": "next build",
@@ -50,5 +62,9 @@
     "postcss": "8.5.6",
     "tailwindcss": "4.1.18",
     "typescript": "5.9.3"
+  },
+  "engines": {
+    "node": "24.13.0",
+    "npm": "11.6.2"
   }
 }

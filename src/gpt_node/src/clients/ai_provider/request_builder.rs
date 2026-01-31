@@ -210,6 +210,14 @@ pub(super) async fn build_request(
             .tool_choice(ChatCompletionToolChoiceOption::Mode(
                 ToolChoiceOptions::Auto,
             ));
+    } else {
+        // When no tools are provided, explicitly set tool_choice to "none"
+        // This prevents the model from attempting tool calls even if
+        // conversation history contains previous tool interactions
+        info!("No tools provided, setting tool_choice to 'none'.");
+        req_builder.tool_choice(ChatCompletionToolChoiceOption::Mode(
+            ToolChoiceOptions::None,
+        ));
     }
 
     let standard_req = req_builder.build()?;

@@ -107,11 +107,10 @@ This workflow deploys the blockchain components to a local Internet Computer rep
 
 ### Prerequisites
 
-* **Rust Toolchain**: 1.93.0+ (stable).
-  * Targets: `wasm32-unknown-unknown`, `x86_64-unknown-linux-musl`.
-* **DFX SDK**: v0.24.0+.
-* **Node.js**: v20+ & npm.
-* **Docker**: Required for deterministic VM builds.
+* **Rust Toolchain**: <https://rust-lang.org/tools/install/>
+* **DFX SDK**: <https://docs.internetcomputer.org/building-apps/getting-started/install>
+* **Node.js**: <https://github.com/nvm-sh/nvm>
+* **Docker**: <https://docs.docker.com/engine/install/>
 
 ### Installation
 
@@ -120,8 +119,12 @@ This workflow deploys the blockchain components to a local Internet Computer rep
     ```bash
     git clone https://github.com/onecompany/gpt.git
     cd gpt
-    make install_tools  # Installs candid-extractor, ic-wasm, audit tools
-    npm install         # Installs frontend dependencies
+    
+    # Install candid-extractor, ic-wasm, audit tools
+    make install_tools
+    
+    # Install frontend dependencies
+    npm install
     ```
 
 2. **Deploy Canisters**:
@@ -148,7 +151,7 @@ Operating a node requires bare-metal Linux with AMD EPYC hardware.
 
 ### Hardware Requirements
 
-* **CPU**: AMD EPYC™ 7003 (Milan), 9004 (Genoa), or newer.
+* **CPU**: AMD EPYC™ 7003 (Milan) or newer.
 * **BIOS**: SEV-SNP enabled. SMT (Simultaneous Multithreading) settings must match the protocol's governance policy (currently requires SMT=Disabled for maximum security).
 * **OS**: Ubuntu 24.04 LTS or newer (Kernel 6.x+ required for KVM/SNP support).
 
@@ -191,11 +194,11 @@ make build_host
 4. **Launch Node**:
 
     ```bash
-    # Create systemd service for Node #1 on port 8000
-    sudo ./gpt_host add --node-id 1 --port 8000
+    # Create systemd service for Node #1
+    sudo ./gpt_host add 1
     
     # Start the service
-    sudo ./gpt_host start --node-id 1
+    sudo ./gpt_host start 1
     ```
 
 ---
@@ -233,8 +236,7 @@ The SEV-SNP Attestation Report contains a `MEASUREMENT` field (SHA-384 hash). Th
 To verify a node or register a new valid measurement in the Governance system:
 
 ```bash
-# Calculates the expected launch digest based on current artifacts
-make measure
+make measure # Calculates launch digest based on current artifacts
 ```
 
 This tool:

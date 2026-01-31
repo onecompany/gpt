@@ -1,0 +1,18 @@
+[toolchain]
+channel = "1.93.0"
+profile = "minimal"
+
+# Common dev tooling + rust-analyzer support
+components = [
+  "clippy",
+  "rustfmt",
+  "rust-src",
+  "rust-analyzer",
+]
+
+# IC canisters + your Docker build targets
+targets = [
+  "wasm32-unknown-unknown",
+  "x86_64-unknown-linux-gnu",
+  "x86_64-unknown-linux-musl",
+]
